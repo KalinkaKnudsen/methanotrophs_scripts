@@ -1,0 +1,757 @@
+```{r}
+
+#libpath<-"/user_data/kalinka/r_packages"
+#.libPaths(c(libpath, .libPaths()))
+#remotes::install_github("MadsAlbertsen/ampvis2")
+#install.packages("cowplot")
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+####### And then trying with the new metadata ######
+
+
+```{r}
+otutable <-vroom("/user_data/kalinka/GraftM/shallow_21_12_2022/combined_count_table_pmoA.txt", delim = "\t")
+otutable <- otutable %>%
+rename(OTU = ConsensusLineage)
+
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = seq_id) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype)
+
+
+```
+
+Importing taxonomy file and renameing the OTU-file
+```{r}
+
+taxonomy <- data.frame(matrix(ncol = 8, nrow = 37))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy) <- x
+taxonomy$OTU<-otutable$OTU
+taxonomy <- taxonomy %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy$Species<-taxonomy$OTU
+
+
+#And a little trick to make species look like OTU-level;
+```
+
+
+```{r}
+d <- amp_load(otutable = otutable, metadata = metadata, taxonomy = taxonomy)
+
+saveRDS(d, file = "/user_data/kalinka/GraftM/shallow_21_12_2022/amp_pmoA_new_meta.rds")
+
+```
+
+
+And perhaps 1 big pca
+
+```{r}
+
+d_s <- amp_subset_samples(d,
+  mfd_sampletype %in% c("Sediment", "Soil" ))
+
+
+pca2<- amp_ordinate(data = d_s, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - New metadata")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+pca2
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_pmoA_new_graft_new_meta_24_01_23.png",
+       pca2,
+        height = 5,
+  width = 10)
+
+```
+
+#### Okay and now to some filtering steps. I want to compare when I filter both the old and new data ######
+```{r}
+d_new<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_new_meta.rds")
+d_old <-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_old_graft_new_meta.rds")
+
+
+d_new$tax <- d_new$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+d_old$tax <- d_old$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+
+tax_vector_new <- c("Root_remove","amoA", "Nitrospira", "Homologous_pmoA","Nitrosococcus", "Actinobacteria", "Root; pmoA_amoA_pxmA; pmoA", "Probably_hydrocarbon_monooxygenases", "Cycloclasticus", "Root; pmoA_amoA_pxmA; pxmA", "Root; pmoA_amoA_pxmA")
+
+f_new <- amp_subset_taxa(d_new, tax_vector = tax_vector_new, remove = TRUE, normalise = TRUE)
+x<-f_new$tax
+
+tax_vector_old<-c("Root; pmoA_amoA_pxmA_umbrella; pxmA_amoA; pxmA","Rhodobacter_cluster","Root; pmoA_amoA_pxmA_umbrella","Root; pmoA_amoA_pxmA_umbrella; pmoA","Cycloclasticus_bradhyrhizobium_cluster","Root_remove","Total_Count", "HMO_cluster", "amoA", "Betaproteobacteria_amoA", "Actinobacteria", "Cycloclasticus", "Nitrosococcus", "Nitrospira_clade_A", "Nitrospira_clade_B")
+f_old <- amp_subset_taxa(d_old, tax_vector = tax_vector_old, remove = TRUE, normalise = TRUE)
+x<-f_old$tax
+
+```
+
+Og så til et lille plot
+```{r}
+
+f_new <- amp_subset_samples(f_new,
+  mfd_sampletype %in% c("Sediment", "Soil" ))
+
+f_old <- amp_subset_samples(f_old,
+  mfd_sampletype %in% c("Sediment", "Soil" ))
+
+pca_f_new<- amp_ordinate(data = f_new, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - New metadata and filtered")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+pca_f_old<- amp_ordinate(data = f_old, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Old GraftM package - New metadata and filtered")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_f_new, pca_f_old, ncol = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_old_and_new_with_filter.png",
+       p,
+        height = 6,
+  width = 18)
+```
+
+
+
+What is happening to the agriculture???
+```{r}
+
+d_new<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_new_meta.rds")
+d_old <-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_old_graft_new_meta.rds")
+
+d_old$tax <- d_old$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+d_new$tax <- d_new$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+
+
+a_new <- amp_subset_samples(d_new,
+  mfd_areatype %in% "Agriculture")
+
+a_old <- amp_subset_samples(d_old,
+  mfd_areatype %in% "Agriculture")
+
+
+pca_a_new<- amp_ordinate(data = a_new, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - Agriculture")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+pca_a_new
+
+pca_a_old<- amp_ordinate(data = a_old, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Old GraftM package - Agriculture")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_a_new, pca_a_old, ncol = 2)
+p
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_agriculture_no_filter.png",
+       p,
+        height = 6,
+  width = 18)
+
+
+
+
+af_new <- amp_subset_samples(f_new,
+  mfd_areatype %in% "Agriculture")
+
+af_old <- amp_subset_samples(f_old,
+  mfd_areatype %in% "Agriculture")
+
+
+pca_af_new<- amp_ordinate(data = af_new, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - Agriculture after filter")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+pca_af_new
+
+pca_af_old<- amp_ordinate(data = af_old, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Old GraftM package - Agriculture after filter")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_af_new, pca_af_old, ncol = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_agriculture_after_filter.png",
+       p,
+        height = 6,
+  width = 18)
+
+
+
+
+##### Removed samples subset ######
+
+
+d_new$tax <- d_new$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+d_old$tax <- d_old$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+
+tax_vector_new <- c("Root_remove","amoA", "Nitrospira", "Homologous_pmoA","Nitrosococcus", "Actinobacteria", "Root; pmoA_amoA_pxmA; pmoA", "Probably_hydrocarbon_monooxygenases", "Cycloclasticus", "Root; pmoA_amoA_pxmA; pxmA", "Root; pmoA_amoA_pxmA")
+f_new_removed <- amp_subset_taxa(d_new, tax_vector = tax_vector_new, remove = FALSE, normalise = TRUE)
+
+tax_vector_old<-c("Root; pmoA_amoA_pxmA_umbrella; pxmA_amoA; pxmA","Rhodobacter_cluster","Root; pmoA_amoA_pxmA_umbrella","Root; pmoA_amoA_pxmA_umbrella; pmoA","Cycloclasticus_bradhyrhizobium_cluster","Root_remove","Total_Count", "HMO_cluster", "amoA", "Betaproteobacteria_amoA", "Actinobacteria", "Cycloclasticus", "Nitrosococcus", "Nitrospira_clade_A", "Nitrospira_clade_B")
+f_old_removed <- amp_subset_taxa(d_old, tax_vector = tax_vector_old, remove = FALSE, normalise = TRUE)
+
+r_new <- amp_subset_samples(f_new_removed,
+  mfd_areatype %in% "Agriculture")
+
+r_old <- amp_subset_samples(f_old_removed,
+  mfd_areatype %in% "Agriculture")
+
+pca_r_new<- amp_ordinate(data = r_new, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - Agriculture removed samples")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+pca_r_old<- amp_ordinate(data = r_old, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 4,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#69d44f", "#ce1515", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Old GraftM package - Agriculture removed")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_r_new, pca_r_old, ncol = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_agriculture_removed.png",
+       p,
+        height = 6,
+  width = 18)
+
+### Heatmaps of the removed samples ####
+
+## Using the all_subset just to see the difference in what is picked up between the two
+
+a_new <- amp_subset_samples(f_new_removed,
+  mfd_areatype %in% "Agriculture",  normalise = TRUE,  removeAbsentOTUs = TRUE )
+
+r_old <- amp_subset_samples(f_old_removed,
+  mfd_areatype %in% "Agriculture")
+
+
+a_new <- amp_subset_samples(d_new,
+  mfd_areatype %in% "Agriculture",  normalise = TRUE,  removeAbsentOTUs = TRUE)
+
+a_old <- amp_subset_samples(d_old,
+  mfd_areatype %in% "Agriculture",  normalise = TRUE,  removeAbsentOTUs = TRUE)
+
+
+hm_r_new <- amp_heatmap(a_new,
+ facet_by = "mfd_sampletype",
+ group_by = "mfd_areatype",
+ tax_aggregate = "Genus",
+ tax_show = 18,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+hm_r_new
+
+hm_a_old <- amp_heatmap(af_old,
+  facet_by = "mfd_hab1",
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 18,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+hm_a_old
+
+```
+
+
+
+
+
+################## With the old metadata #################
+
+```{r}
+otutable <-vroom("/user_data/kalinka/GraftM/shallow_21_12_2022/combined_count_table_pmoA.txt", delim = "\t")
+otutable <- otutable %>%
+rename(OTU = ConsensusLineage)
+
+metadata <- read.delim("/projects/microflora_danica/Data_freezes/2022_09_08/2022-07-26_mfd_minimal_metadata.txt", header = TRUE, sep = " ") # nolint
+metadata <- metadata %>%
+  separate(gps_location, into = c("latitude","longitude"), sep = ',') %>%
+  rename(SeqId = seq_id) %>%
+    drop_na(after_total_reads) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000)
+
+
+```
+
+Importing taxonomy file and renameing the OTU-file
+```{r}
+taxonomy <- read.delim("/user_data/kalinka/GraftM/combining_out/pmoA_taxonomy.csv", header = TRUE, sep = ",")
+otutable$OTU<-taxonomy$OTU
+
+taxonomy <- data.frame(matrix(ncol = 8, nrow = 37))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy) <- x
+taxonomy$OTU<-otutable$OTU
+taxonomy <- taxonomy %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy$Species<-taxonomy$OTU
+
+
+#And a little trick to make species look like OTU-level;
+```
+
+```{r}
+d <- amp_load(otutable = otutable, metadata = metadata, taxonomy = taxonomy)
+
+saveRDS(d, file = "/user_data/kalinka/GraftM/shallow_21_12_2022/amp_pmoA_old_meta.rds")
+#stats <- amp_alphadiv(data = d)
+
+#amp_rarecurve(data = d, 
+ #             color_by = "sample_type", 
+  #            stepsize = 10) + 
+   #           xlim(0, 900)
+
+```
+
+
+```{r}
+
+pca_habitat<- amp_ordinate(data = d, 
+             type = "PCA", 
+             transform = "hellinger", 
+             sample_color_by = "habitat_type")
+            #sample_colorframe = TRUE)
+
+pca_habitat
+
+ggsave("/user_data/kalinka/metadata/pca_habitat.png",
+       pca_habitat,
+       height = 10,
+       width = 10)
+
+```
+
+
+```{r}
+heatmap_habitat<-amp_heatmap(d,
+  group_by = "habitat_type",
+  tax_aggregate = "Species",
+  tax_show = 25,
+  facet="habitat_type")+  
+  theme(axis.text.x=element_blank(), axis.text.y = element_text(size = 9),
+                    axis.ticks.x=element_blank())
+
+ggsave("/user_data/kalinka/metadata/heatmap_habitat.png",
+       heatmap_habitat,
+       height = 8,
+       width = 20)
+```
+
+
+New heatmap
+
+```{r}
+
+d_s <- amp_subset_samples(d,
+  sample_type %in% c("sediment", "soil" ))
+
+tax_vector<-c("Root_pmoA","Actinobacteria", "HMO_cluster")
+d_no_root <- amp_subset_taxa(d_s, tax_vector = tax_vector, remove = TRUE)
+  
+heatmap2 <- amp_heatmap(d_s,
+  facet_by = "sample_type",
+ group_by = "habitat_type",
+ tax_aggregate = "Species",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+ggsave("/user_data/kalinka/metadata/heatmap2_pmoA.png",
+       heatmap2,
+       height = 9,
+       width = 9)
+
+
+heatmap2_no_root <- amp_heatmap(d_no_root,
+  facet_by = "sample_type",
+ group_by = "habitat_type",
+ tax_aggregate = "Species",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+ggsave("/user_data/kalinka/metadata/heatmap2_no_root_pmoA.png",
+       heatmap2_no_root,
+       height = 9,
+       width = 9)
+
+```
+
+
+And some PCA stuff
+
+```{r}
+
+sediment_subset <- amp_subset_samples(d,
+  sample_type %in% "sediment")
+
+soil_subset <- amp_subset_samples(d,
+   sample_type %in% "soil")
+
+pca_soil<- amp_ordinate(data = soil_subset, 
+       type = "PCA", 
+           transform = "hellinger", 
+           sample_color_by = "habitat_type")
+pca_sediment<- amp_ordinate(data = sediment_subset, 
+             type = "PCA", 
+             transform = "hellinger", 
+
+             sample_color_by = "habitat_type")
+
+
+ggsave("/user_data/kalinka/metadata/pcasoil.png",
+        pca_soil,
+        height = 7,
+        width = 8)
+ ggsave("/user_data/kalinka/metadata/pcasediment.png",
+       pca_sediment,
+        pca_sediment,
+        height = 7,
+  width = 8)
+```
+
+
+And perhaps 1 big pca
+
+```{r}
+pca2<- amp_ordinate(data = d_s, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "habitat_type",
+            sample_shape_by = "sample_type",
+            size=10) +
+  scale_color_manual(values=c("#69d44f",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#ce1515",
+"#01b5b7",
+"#eed70d",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - Old metadata")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+pca2
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_pmoA_new_graft_old_meta_24_01_23.png",
+       pca2,
+        height = 5,
+  width = 10)
+
+```
+
+
+
+
+
+Diversity
+```{r}
+
+tax_vector<-c("Total_Count", "HMO_cluster", "Root_pmoA", "amoA", "Betaproteobacteria_amoA", "Actinobacteria", "Cycloclasticus", "Nitrosococcus", "Nitrospira_clade_A", "Nitrospira_clade_B")
+
+d_positives <- amp_subset_taxa(d, tax_vector = tax_vector, remove = TRUE, normalise = TRUE)
+
+alphadiversityresult <- amp_alphadiv(d_positives,
+  measure = c("observed","shannon"))
+
+
+alphadiversityresult_subset<-alphadiversityresult%>%
+filter(Shannon>2 & Reads>60) 
+
+
+
+#Maybe I can make a new ampvis_element form this?
+
+diversity_ampvis <- amp_load(otutable = otutable, metadata = alphadiversityresult_subset, taxonomy = taxonomy)
+tax_vector<-c("Total_Count", "HMO_cluster", "Root_pmoA", "amoA", "Betaproteobacteria_amoA", "Actinobacteria", "Cycloclasticus", "Nitrosococcus", "Nitrospira_clade_A", "Nitrospira_clade_B")
+
+diversity_ampvis <- amp_subset_taxa(diversity_ampvis, tax_vector = tax_vector, remove = TRUE, normalise = TRUE)
+
+#That worked! Now to a little heatmap!
+
+
+
+heatmap_diverse_samples <- amp_heatmap(diversity_ampvis,
+  facet_by = "habitat_type",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Species",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/metadata/diverse.png",
+       heatmap_diverse_samples,
+        height = 8,
+  width = 30)
+
+
+```
+
