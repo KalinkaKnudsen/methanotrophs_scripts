@@ -1,0 +1,197 @@
+```{r}
+library(tidyverse)
+library(vroom) #For loading large data faster
+library(gridExtra) #For plotting
+```
+
+```{r}
+hits<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/position_of_mmoX_hits.tsv", delim = "\t")
+hits <- hits %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+```
+
+
+
+```{r}
+
+
+position <- ggplot(hits, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.65) +
+    scale_colour_manual(values=c("#702020","#648847","#9b568a","#858584","#30304d" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/position_of_mmoX_hits.png",
+       position,
+       height = 5,
+       width = 12)
+```
+
+#### Extracting the "bad" reads
+
+```{r}
+hits_bad <- hits %>%
+  filter(hmm_start>340, hmm_end < 400) 
+
+
+ggplot(hits_bad, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.65) +
+    scale_colour_manual(values=c("#702020","#648847","#9b568a","#858584","#30304d" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cds_to_blast <- hits_bad %>% 
+select(Sequence)%>%
+  pull()
+write.table(cds_to_blast, "/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/cds_to_blast.txt", quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+
+```
+
+
+
+
+
+## And now to looking at the output after the re-run with a decoy database
+```{r}
+hits_after_decoy<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/position_of_mmoX_hits_decoy.tsv", delim = "\t")
+
+hits_after_decoy <- hits_after_decoy %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_after_decoy <- ggplot(hits_after_decoy, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.65) +
+    scale_colour_manual(values=c("#702020","#648847","#9b568a","#858584","#30304d" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples after propane decoy") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+position_after_decoy
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/position_of_mmoX_hits_after_decoy.png",
+       position_after_decoy,
+       height = 7,
+       width = 12)
+
+hits_bad_after_decoy <- hits_after_decoy %>%
+  filter(hmm_start>205, hmm_end < 290) 
+
+
+ggplot(hits_bad_after_decoy, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.65) +
+    scale_colour_manual(values=c("#702020","#648847","#9b568a","#858584","#30304d" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cds_to_blast_after_decoy <- hits_bad_after_decoy %>% 
+select(Sequence)%>%
+  pull()
+write.table(cds_to_blast_after_decoy, "/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/cds_to_blast_after_decoy.txt", quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+```
+
+
+###### Trying to convert this to coverage profile ######
+```{r}
+
+# Step 1: create a new data frame with every position of the gene
+gene_positions <- hits %>%
+  summarise(start = min(hmm_start),
+            end = max(hmm_end)) %>%
+  expand(Position = seq(start, end))
+
+# Step 2: join the original data frame with the new data frame
+reads_by_position <- gene_positions %>%
+  left_join(hits %>% 
+              mutate(Position = map2(hmm_start, hmm_end, seq)) %>%
+              unnest(Position) %>%
+              count(Position)) %>%
+  replace_na(list(n = 0))
+
+# Step 3: Summarize the number of reads for each position
+reads_summary <- reads_by_position %>%
+  group_by(Position) %>%
+  summarise(Coverage = sum(n))
+
+# Step 4: Visualize the distribution of reads along the gene
+cov_sum<-ggplot(reads_summary, aes(x = Position, y = Coverage)) + 
+  geom_line(color="#1c1c79", linewidth=1) +
+  ggtitle("mmoX coverage profile of 359 agriculture samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/coverage_all.png",
+       cov_sum,
+       height = 5,
+       width = 10)
+```
+
+###### And then coverage profile for each taxonomic group #####
+
+```{r}
+
+# Step 1: Create a data frame with every position of the gene
+gene_positions <- hits %>%
+  summarise(start = min(hmm_start),
+            end = max(hmm_end)) %>%
+  expand(Position = seq(start, end))
+
+# Step 2: Join the gene_positions data frame with the hits data frame and group by "tax_label"
+reads_by_position <- gene_positions %>%
+  left_join(hits %>% 
+              mutate(Position = map2(hmm_start, hmm_end, seq)) %>%
+              unnest(Position) %>%
+              group_by(Position, tax_label) %>%
+              count()) %>%
+  replace_na(list(n = 0))
+
+# Step 3: Summarize the number of reads for each position and tax_label
+reads_summary <- reads_by_position %>%
+  group_by(Position, tax_label) %>%
+  summarise(Coverage = sum(n))
+
+# Step 4: Visualize the distribution of reads along the gene by tax_label
+cov_tax<-ggplot(reads_summary, aes(x = Position, y = Coverage, color = tax_label)) + 
+  geom_line(linewidth=1)+
+  scale_colour_manual(values=c("#702020","#648847","#9b568a","#858584","#1c1c79" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  theme(panel.background = element_rect(fill = "transparent", colour = NA))
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/coverage_tax.png",
+       cov_tax,
+       height = 5,
+       width = 12)
+
+
+mmoX_diff <- reads_summary %>% 
+  group_by(tax_label) %>% 
+  summarise(median_cov = median(Coverage),
+            max_cov = max(Coverage),
+            diff_cov = max_cov - median_cov,
+            ratio_cov = max_cov/median_cov)
+
+mmoX_diff_bar<-ggplot(mmoX_diff, aes(x = tax_label, y = ratio_cov, color =tax_label)) +
+  geom_bar(stat = "identity", fill="white", linewidth=2) +
+  scale_color_manual(values=c("#702020","#648847","#9b568a","#858584","#1c1c79" , "#52f506", "#ea8706", "#cfcc12", "#09c9ef"), name="Taxonomy") +
+  ylab("Ratio between Median and Maximum Coverage")+
+  xlab("")+
+  ylim(0,150)+
+  coord_flip()+
+  theme(panel.background = element_rect(fill = "transparent", colour = NA))+
+  theme(axis.line.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "none")
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/ratio_cov.png",
+       mmoX_diff_bar,
+       height = 3,
+       width = 6)
+```

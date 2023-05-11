@@ -1,0 +1,183 @@
+```{r}
+library(tidyverse)
+library(vroom) #For loading large data faster
+library(gridExtra) #For plotting
+```
+
+##### pmoA ######
+
+```{r}
+hits_pmoA<-vroom("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/bog_position_of_pmoA_hits.tsv", delim = "\t")%>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+```
+
+
+
+```{r}
+hits_pmoA <- hits_pmoA %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_pmoA <- ggplot(hits_pmoA, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.4) +
+  scale_colour_manual(values=c("#df23a0","#648847","#9b568a","#858584",
+  "#30304d" , "#52f506", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b" ), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 119 Sphagnum acid bog samples - pmoA") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 400) +
+  guides(colour = guide_legend(override.aes = list(size = 10)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/position_of_pmoA_hits.png",
+       position_pmoA,
+       height = 12,
+       width = 12)
+```
+
+##### mmoX ######
+
+```{r}
+hits_mmoX<-vroom("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/bog_position_of_mmoX_hits.tsv", delim = "\t")%>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+```
+
+
+
+```{r}
+hits_mmoX <- hits_mmoX %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_mmoX <- ggplot(hits_mmoX, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.7) +
+  scale_colour_manual(values=c("#b45494","#648847","#0f44f3","#858584",
+  "#30304d" , "#61a00f", "#ea8706", "#cfcc12", "#587041", "#702020","#747cdf",
+  "#ef0909", "#6d5136", "#e74141", "#09efe3","#97999b" ), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 119 Sphagnum acid bog samples - mmoX") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 525) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/position_of_mmoX_hits.png",
+       position_mmoX,
+       height = 10,
+       width = 12)
+```
+
+
+
+##### Now to the "removed" part of the pmoA output
+
+```{r}
+hits_pmoA_removed<-vroom("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/bog_position_of_pmoA_hits_removed.tsv", delim = "\t")
+```
+
+
+
+```{r}
+hits_pmoA_removed <- hits_pmoA_removed %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_pmoA_removed <- ggplot(hits_pmoA_removed, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.7) +
+  scale_colour_manual(values=c("#df23a0","#648847","#9b568a","#858584",
+  "#30304d" , "#52f506", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b" ), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 119 Sphagnum acid bog samples - pmoA removed") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 400) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/position_of_pmoA_hits_removed.png",
+       position_pmoA_removed,
+       height = 8,
+       width = 12)
+```
+
+
+
+
+###### And then coverage profile for each taxonomic group #####
+
+```{r}
+
+# Step 1: Create a data frame with every position of the gene
+gene_positions_pmoA <- hits_pmoA %>%
+  summarise(start = min(hmm_start),
+            end = max(hmm_end)) %>%
+  expand(Position = seq(start, end))
+
+# Step 2: Join the gene_positions data frame with the hits data frame and group by "tax_label"
+reads_by_position_pmoA <- gene_positions_pmoA %>%
+  left_join(hits_pmoA %>% 
+              mutate(Position = map2(hmm_start, hmm_end, seq)) %>%
+              unnest(Position) %>%
+              group_by(Position, tax_label) %>%
+              count()) %>%
+  replace_na(list(n = 0))
+
+# Step 3: Summarize the number of reads for each position and tax_label
+reads_summary_pmoA <- reads_by_position_pmoA %>%
+  group_by(Position, tax_label) %>%
+  summarise(Coverage = sum(n))
+
+
+
+# Step 4: Visualize the distribution of reads along the gene by tax_label
+cov_tax_pmoA<-ggplot(reads_summary_pmoA, aes(x = Position, y = Coverage, color = tax_label)) + 
+  geom_line(linewidth=1)+
+  scale_colour_manual(values=c("#df23a0","#648847","#9b568a","#858584",
+  "#30304d" , "#52f506", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b" ), name="Taxonomy") +
+  theme(panel.background = element_rect(fill = "transparent", colour = NA))+
+  ggtitle("Coverage profile pmoA - bogs") +
+  theme(plot.title = element_text(hjust = 0.5))
+cov_tax_pmoA
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/coverage_tax_pmoA_bogs.png",
+       cov_tax_pmoA,
+       height = 5,
+       width = 12)
+
+
+pmoA_diff <- reads_summary_pmoA %>% 
+  group_by(tax_label) %>% 
+  summarise(median_cov = median(Coverage),
+            max_cov = max(Coverage),
+            diff_cov = max_cov - median_cov,
+            ratio_cov = max_cov/median_cov)
+
+
+pmoA_diff_bar<-ggplot(pmoA_diff, aes(x = tax_label, y = ratio_cov, color =tax_label)) +
+  geom_bar(stat = "identity", fill="white", linewidth=1) +
+  scale_color_manual(values=c("#df23a0","#648847","#9b568a","#858584",
+  "#30304d" , "#52f506", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b"), name="Taxonomy") +
+  ylab("Ratio between Median and Maximum Coverage")+
+  xlab("")+
+  ylim(0,150)+
+  coord_flip()+
+  theme(panel.background = element_rect(fill = "transparent", colour = NA))+
+    theme(axis.line.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "none")
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/diff_coverage_tax_pmoA_bogs.png",
+       pmoA_diff_bar,
+       height = 3,
+       width = 6)
+
+```

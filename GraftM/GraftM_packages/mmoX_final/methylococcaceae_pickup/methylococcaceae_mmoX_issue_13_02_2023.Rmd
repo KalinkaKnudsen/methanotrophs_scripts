@@ -1,0 +1,283 @@
+```{r}
+
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+##Importing ampvis object
+```{r}
+amp<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+```
+
+##### Subsetting to exclude "normalising_factor" ####
+
+```{r}
+
+tax_vector <- c("normalising_factor")
+amp_f <- amp_subset_taxa(amp, tax_vector = tax_vector, remove = TRUE, normalise = TRUE)
+amp_f$tax <- amp_f$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$"))
+```
+
+
+### Subsetting to remove the "unwanted" OTUs
+```{r}
+tax_vector_OTUs <- c("normalising_factor","Root; Homologues_mmoX","Root; likely_mmoX","Root_mmoX","Root_pmoA","amoA", "Nitrospira", "Homologous_pmoA","Nitrosococcus", "Actinobacteria", "Root; pmoA_amoA_pxmA; pmoA", "Probably_hydrocarbon_monooxygenases", "Cycloclasticus", "Root; pmoA_amoA_pxmA; pxmA", "Root; pmoA_amoA_pxmA")
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = TRUE)
+f$tax <- f$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+```
+
+
+#### Testing Methylococcaceae_mmoX ######
+```{r}
+meta<-f$metadata
+#Subsetting some agriculture
+Asterids_Fabids<-amp_filter_samples(f, mfd_hab2 %in% c("Asterids","Fabids","Mixed crops"), normalise = FALSE)
+Asterids_Fabids_long<-amp_export_long(
+  Asterids_Fabids,
+  metadata_vars = colnames(Asterids_Fabids$metadata),
+  tax_levels = colnames(Asterids_Fabids$tax)
+)
+
+
+#Poales_Cereal<-amp_filter_samples(f, mfd_hab2 %in% c("Poales, Cereal"), normalise = FALSE)
+
+pointplot_Asterids_Fabids <- ggplot(Asterids_Fabids_long, aes(x = fieldsample_barcode, y = count))+
+  geom_point(aes(fill=Genus, group = Genus), shape=21, size=1, color="black", stroke=0.35, alpha=1)+
+ theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())+
+   ylab("Relative Abundance") +
+  xlab("OTU")+
+  #scale_fill_manual(values=c("#69d44f","#40E1FA","#0F4B1B","#ec60c0","#ec9e44","#906519","#8773ea","#d42b28","#0092f3","#E8FA40","blue","#a1005c"), name="MFD Habitat_1")+ 
+  coord_flip()
+  #scale_y_sqrt()+
+  #facet_wrap(~ mfd_sampletype)
+
+
+barplot_Asterids_Fabids<- ggplot(Asterids_Fabids_long, aes(x = fieldsample_barcode, y = count, fill = mfd_hab2)) +
+  geom_bar(stat = "identity") +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#789c3e","#397d88", "#852424"), name="MFD Habitat_2")+      
+  facet_wrap(~ Genus)+
+  ggtitle("Subset of agriculture samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/barplot_asterids_fabids.png",
+       barplot_Asterids_Fabids,
+        height = 7,
+  width = 11) 
+
+
+## Exporting the list of samples to investigate the position of the hits ##
+unique_seqids <- Asterids_Fabids_long %>% 
+  distinct(SeqId) %>% 
+  pull()
+write.table(unique_seqids, "/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/unique_seqids.txt", quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+##### Trying with all agriculture ####
+agri<-amp_filter_samples(f, mfd_hab1 %in% c("Fields"), normalise = FALSE)
+
+agri_long<-amp_export_long(
+  agri,
+  metadata_vars = colnames(agri$metadata),
+  tax_levels = colnames(agri$tax)
+)
+
+agri_long<-agri_long%>%
+filter(!is.na(mfd_hab2))
+agri_barplot<-ggplot(agri_long, aes(x = fieldsample_barcode, y = count, fill = mfd_hab2)) +
+  geom_bar(stat = "identity") +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#69d44f","#40E1FA","#0F4B1B","#ec60c0","#ec9e44","#906519","#8773ea","#d42b28","#0092f3"), name="MFD Habitat_2")+      
+  facet_wrap(~ Genus) +
+   ggtitle("All agriculture samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/barplot_agri.png",
+       agri_barplot,
+        height = 10,
+  width = 12) 
+
+
+#### Selecting the samples from long-read MFD ###
+
+shallow_long_samples<-amp_filter_samples(f_all_hab_2,
+                                    fieldsample_barcode %in% c("MFD01138", "MFD01223",
+"MFD01248",
+"MFD02979",
+"MFD03346",
+"MFD03399",
+"MFD03638",
+"MFD03726",
+"MFD03899",
+"MFD04408",
+"MFD04434",
+"MFD04967",
+"MFD05580",
+"MFD10064"), normalise = FALSE)
+string<-long_samples$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+genus_string <- unique(genus_string)
+
+
+hm_shallow_long_samples <- amp_heatmap(shallow_long_samples,
+  #facet_by = "mfd_areatype",
+ group_by ="fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("#f8f8f8", "darkred"),
+ plot_colorscale = "log10",
+ plot_values = FALSE,
+ min_abundance=0.1,
+order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+hm_shallow_long_samples
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/hm_long.png",
+       hm_shallow_long_samples,
+        height = 5,
+  width = 7) 
+
+
+
+
+#### And now to importing the combined count table from the long read samples ####
+
+otutable_mmoX_long <-vroom("/user_data/kalinka/GraftM/long_read_graftM/mfd_deep_metagenomes/combined_count_table_mmoX.txt", delim = "\t")
+otutable_mmoX_long <- otutable_mmoX_long %>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = fieldsample_barcode) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype) ###Remove samples with no sample type
+taxonomy <- data.frame(matrix(ncol = 8, nrow = 9))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy) <- x
+taxonomy$OTU<-otutable_mmoX_long$OTU
+taxonomy <- taxonomy %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy$Species<-taxonomy$OTU
+amp_long<- amp_load(otutable = otutable_mmoX_long, metadata = metadata, taxonomy = taxonomy)
+
+amp_long$tax <- amp_long$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) %>%
+  mutate(Genus = if_else(Class == "Methylococcaceae_mmoX","Methylococcaceae_mmoX", Genus))%>%
+  mutate(Genus = if_else(Order == "Methylocystaceae","Methylocystaceae_mmoX", Genus))
+tax<-amp_long$tax
+string<-amp_long$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+genus_string <- unique(genus_string)
+
+### And then heatmapping it ####
+long_heatmap <- amp_heatmap(amp_long,
+  #facet_by = "mfd_areatype",
+ group_by ="SeqId",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("#f8f8f8", "darkred"),
+ plot_colorscale = "log10",
+plot_values = TRUE,
+ plot_values_size = 2.5,
+ min_abundance=1,
+order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+long_heatmap
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/hm_long_from_nanopore.png",
+       long_heatmap,
+        height = 3.5,
+  width = 7) 
+#### Okay nej - det samme er slet ikke samlet op! Jeg skal altså finde ud af hvad der lige sker med de shallow prøver!
+```
+
+##### Now doing it with raw reads ####
+```{r}
+
+otutable_mmoX_long_raw <-vroom("/user_data/kalinka/GraftM/long_read_graftM/mfd_deep_metagenomes/raw_reads/mmoX/combined_count_table_mmoX.txt", delim = "\t")
+otutable_mmoX_long_raw <- otutable_mmoX_long_raw %>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = fieldsample_barcode) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype) ###Remove samples with no sample type
+taxonomy <- data.frame(matrix(ncol = 8, nrow = 9))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy) <- x
+taxonomy$OTU<-otutable_mmoX_long$OTU
+taxonomy <- taxonomy %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy$Species<-taxonomy$OTU
+amp_long<- amp_load(otutable = otutable_mmoX_long_raw, metadata = metadata, taxonomy = taxonomy)
+
+amp_long$tax <- amp_long$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) %>%
+  mutate(Genus = if_else(Class == "Methylococcaceae_mmoX","Methylococcaceae_mmoX", Genus))%>%
+  mutate(Genus = if_else(Order == "Methylocystaceae","Methylocystaceae_mmoX", Genus))
+tax<-amp_long$tax
+string<-amp_long$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+genus_string <- unique(genus_string)
+
+### And then heatmapping it ####
+long_heatmap_raw <- amp_heatmap(amp_long,
+  #facet_by = "mfd_areatype",
+ group_by ="SeqId",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("#f8f8f8", "darkred"),
+ plot_colorscale = "sqrt",
+plot_values = TRUE,
+ plot_values_size = 2.5,
+ min_abundance=1,
+order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+long_heatmap_raw
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_final/methylococcaceae_pickup/hm_long_from_nanopore_raw.png",
+       long_heatmap_raw,
+        height = 3.5,
+  width = 7) 
+#### Øhhhhh der bliver jo samlet en del raller op hva....... #####
+```
+
+
+### Subsetting nat soil samples to get position also of pmoA ###
+```{r}
+
+spaghnum <- f$metadata %>%
+  filter(mfd_hab2 == "Sphagnum acid bogs")
+
+## Exporting the list of samples to investigate the position of the hits ##
+sphagnum_seqs <- spaghnum %>% 
+  distinct(SeqId) %>% 
+  pull()
+write.table(sphagnum_seqs, "/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/bogs_seqid.txt", quote = FALSE, col.names = FALSE, row.names = FALSE)
+```

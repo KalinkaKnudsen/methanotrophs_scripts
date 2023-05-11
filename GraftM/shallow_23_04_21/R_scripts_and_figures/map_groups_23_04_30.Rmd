@@ -1,0 +1,567 @@
+```{r}
+
+#libpath<-"/user_data/kalinka/r_packages"
+#.libPaths(c(libpath, .libPaths()))
+#remotes::install_github("MadsAlbertsen/ampvis2")
+#install.packages("cowplot")
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+library(mapDK) 
+library(gridExtra) #For plotting
+
+```
+
+### First step is to make my dataframe into long format ##
+```{r}
+amp<-readRDS("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+amp$metadata <- amp$metadata %>%
+  mutate(mfd_hab2 = gsub("§3 mire", "Mire", mfd_hab2)) %>%
+  mutate(mfd_hab2 = gsub("Forrest \\(non-habitattype\\)", "Forest", mfd_hab2))%>%
+  mutate(mfd_hab1 = gsub("Forrest", "Forest", mfd_hab1))%>%
+  mutate(mfd_hab2=gsub("Fen wetland \\(non-habitat type\\)", "Fen wetland", mfd_hab2))%>%
+  mutate(mfd_hab2=gsub("Grasslands \\(non-habitat type\\)", "Grasslands",mfd_hab2))%>%
+  mutate(mfd_hab3=gsub("Roadside\\?", "Roadside",mfd_hab3))%>%
+  mutate(mfd_hab1 = if_else(is.na(mfd_hab1), paste0(mfd_areatype, " - lacks classification"), mfd_hab1))%>%
+  filter(latitude<59)
+
+### One dataframe with amoA ###
+tax_vector_OTUs <- c("Homologous_MO",
+"pxmA",
+"Root_pmoA",
+"Homologous_mmoX",
+"Propane_MO",
+"Homologous_pmoA",
+"Actinobacteria",
+"Nitrosococcus",
+"Root_mmoX",
+"Butane_MO",
+"normalising_factor")
+
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = FALSE) #Set normalise to false to get raw counts. I can then normalise in the long format!
+f$tax <- f$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+
+
+f_long <- amp_export_long(f, metadata_vars = c("SeqId", "fieldsample_barcode", "latitude", "longitude", "sitename", "sampling_comment",
+"project_id", "unified","mfd_sampletype", "mfd_areatype", "mfd_hab1", "mfd_hab2","mfd_hab3", "after_total_reads", "after_total_bases",
+"library_concentration", "extraction_concentration"), tax_levels = c("OTU", "Genus"))%>%
+mutate(normalising_factor=after_total_bases/(2*4500000))%>% #Genome size is 4.5 million
+mutate(rel_abun=100*count/normalising_factor)%>%
+mutate(mfd_hab1 = if_else(is.na(mfd_hab1), paste0(mfd_areatype, " - lacks classification"), mfd_hab1))%>%
+filter(latitude<59)
+```
+
+
+#### Trying very simple plot of USCa
+```{r}
+USCa<-f_long%>%
+filter(Genus=="USCa") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+USCa_map<- m+ 
+  geom_point(data = USCa,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21
+  ) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#fd0dfd","#000000","#0aebf3","#8a1c37"), name = "Habitat")+
+  labs(title="USCα")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/USCa_map.png",
+       USCa_map,
+        height = 7,
+  width = 10)
+```
+
+
+###Then TUSC ###
+
+```{r}
+TUSC<-f_long%>%
+filter(Genus=="TUSC") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+TUSC_map<- m+ 
+  geom_point(data = TUSC,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc",
+"#e68404","#8a1c37","#0aebf3","#8a1c37"), name = "Habitat")+
+  labs(title="TUSC")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/TUSC_map.png",
+       TUSC_map,
+        height = 7,
+  width = 10)
+```
+
+
+
+
+###Then USCg ###
+
+```{r}
+USCg<-f_long%>%
+filter(Genus=="USCg") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+USCg_map<- m+ 
+  geom_point(data = USCg,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.000001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc",
+"#e68404","#0aebf3","#8a1c37"), name = "Habitat")+
+  labs(title="USCγ")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/USCg_map.png",
+       USCg_map,
+        height = 7,
+  width = 10)
+```
+
+
+
+
+
+
+###Then Putative_pmoA ###
+
+```{r}
+Putative_pmoA_Binatales<-f_long%>%
+filter(Genus=="Putative_pmoA_Binatales") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+Putative_pmoA_Binatales_map<- m+ 
+  geom_point(data = Putative_pmoA_Binatales,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+   scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#fd0dfd","#000000","#0aebf3"), name = "Habitat")+
+  labs(title="Putative pmoA Binatales")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/Putative_pmoA_Binatales_map.png",
+       Putative_pmoA_Binatales_map,
+        height = 7,
+  width = 10)
+```
+
+
+
+#### Then trying hyphomicrobiaceae
+
+```{r}
+HYP<-f_long%>%
+filter(Genus %in% c("Hyphomicrobiaceae_mmoX","Hyphomicrobiaceae_pmoA")) %>%
+group_by(SeqId)%>%
+mutate(rel_abun_combined=mean(rel_abun))%>%
+distinct(SeqId, .keep_all = TRUE)%>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+HYP_map<- m+ 
+  geom_point(data = HYP,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun_combined), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21
+  ) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#fd0dfd","#000000","#0aebf3"), name = "Habitat")+
+  labs(title="Hyphomicrobiaceae")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)), size=guide_legend(order=2))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/HYP_map.png",
+       HYP_map,
+        height = 7,
+  width = 10)
+```
+
+
+#### And HYP pmoA and mmoX seperate
+
+```{r}
+HYP_pmoA<-f_long%>%
+filter(Genus %in% c("Hyphomicrobiaceae_pmoA")) %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+HYP_pmoA_map<- m+ 
+  geom_point(data = HYP_pmoA,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21
+  ) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#000000","#0aebf3"), name = "Habitat")+
+  labs(title="Hyphomicrobiaceae pmoA")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)), size=guide_legend(order=2))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/HYP_pmoA_map.png",
+       HYP_pmoA_map,
+        height = 7,
+  width = 10)
+
+HYP_mmoX<-f_long%>%
+filter(Genus %in% c("Hyphomicrobiaceae_mmoX")) %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+HYP_mmoX_map<- m+ 
+  geom_point(data = HYP_mmoX,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21
+  ) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#8a1c37","#000000","#0aebf3"), name = "Habitat")+
+  labs(title="Hyphomicrobiaceae mmoX")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)), size=guide_legend(order=2))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/HYP_mmoX_map.png",
+       HYP_mmoX_map,
+        height = 7,
+  width = 10)
+```
+
+
+
+#### Mapping old packages - conclusion - no large difference! ####
+
+```{r}
+
+amp<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_old_graft_new_meta.rds")
+amp$metadata <- amp$metadata %>%
+  mutate(mfd_hab2 = gsub("§3 mire", "Mire", mfd_hab2)) %>%
+  mutate(mfd_hab2 = gsub("Forrest \\(non-habitattype\\)", "Forrest", mfd_hab2))%>%
+  mutate(mfd_hab2=gsub("Fen wetland \\(non-habitat type\\)", "Fen wetland", mfd_hab2))%>%
+  mutate(mfd_hab2=gsub("Grasslands \\(non-habitat type\\)", "Grasslands",mfd_hab2))%>%
+  mutate(mfd_hab3=gsub("Roadside\\?", "Roadside",mfd_hab3))
+
+### One dataframe with amoA ###
+tax_vector_OTUs <- c("Homologous_MO",
+"pxmA",
+"Root_pmoA",
+"Homologous_mmoX",
+"Propane_MO",
+"Homologous_pmoA",
+"Actinobacteria",
+"Nitrosococcus",
+"Root_mmoX",
+"Butane_MO",
+"normalising_factor")
+
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = FALSE) #Set normalise to false to get raw counts. I can then normalise in the long format!
+f$tax <- f$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+
+
+f_long <- amp_export_long(f, metadata_vars = c("SeqId", "fieldsample_barcode", "latitude", "longitude", "sitename", "sampling_comment",
+"project_id", "unified","mfd_sampletype", "mfd_areatype", "mfd_hab1", "mfd_hab2","mfd_hab3", "after_total_reads", "after_total_bases",
+"library_concentration", "extraction_concentration"), tax_levels = c("OTU", "Genus"))%>%
+mutate(normalising_factor=after_total_bases/(2*4500000))%>% #Genome size is 4.5 million
+mutate(rel_abun=count/normalising_factor)%>%
+mutate(mfd_hab1 = if_else(is.na(mfd_hab1), paste0(mfd_areatype, " - lacks classification"), mfd_hab1))%>%
+filter(latitude<59)
+```
+
+
+
+
+###Then TUSC OLD ###
+
+```{r}
+TUSC<-f_long%>%
+filter(Genus=="TUSC") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+TUSC_map_old<- m+ 
+  geom_point(data = TUSC,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.0000001, 0.2), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#0aebf3","#020202", "#f3a90a"), name = "Habitat")+
+  labs(title="TUSC")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/TUSC_map_old.png",
+       TUSC_map_old,
+        height = 7,
+  width = 10)
+```
+
+
+
+###Then USCa OLD ###
+
+```{r}
+USCa<-f_long%>%
+filter(Genus=="USCa") %>%
+filter(count>0) %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+USCa_map_old<- m+ 
+  geom_point(data = USCa,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                size=rel_abun
+  ), 
+  alpha = 0.5,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+  scale_size_continuous(range = c(1,10), limits=c(0.0000001, 0.2), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#0aebf3","#020202", "#f3a90a","black"), name = "Habitat")+
+  labs(title="USCa")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/USCa_map_old.png",
+       USCa_map_old,
+        height = 7,
+  width = 10)
+```
+
+
+
+##### Just mapping all the samples by sampletype ####
+
+```{r}
+metadata<-amp$metadata %>%
+group_by(mfd_hab1) %>%
+mutate(label = paste0(mfd_hab1, ' (', n(), ')'))
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+map<- m+ 
+  geom_point(data = metadata,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                #size=rel_abun
+  ), 
+  alpha = 0.65,
+  colour = 'black',
+  stroke = 0.2,
+  shape=21,
+  size=2) + 
+  #scale_size_continuous(range = c(1,10), limits=c(0.0000001, 0.2), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#fd0dfd","#8a1c37","#000000","#0aebf3","#8a1c37"), name = "Habitat")+
+  #labs(title="USCa")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/map.png",
+       map,
+        height = 6,
+  width = 9)
+
+
+map<- m+ 
+  geom_point(data = metadata,aes(x=longitude, 
+                                y=latitude, 
+                                fill = label,
+                                group = label,
+                                shape=mfd_sampletype,
+  ), 
+  alpha = 0.6,
+  colour = 'black',
+  stroke = 0.6,
+#  shape=21,
+  size=1.8) + 
+  scale_shape_manual(values=c(21,23,24), name="Sample Type")+
+  #scale_size_continuous(range = c(1,10), limits=c(0.0000001, 0.2), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#04ff42", "#38ac8d", "#eed70d",
+"#998c18","#db1919","#d48a9d","#072bfc","#8773ea",
+"#e68404","#fd0dfd","#8a1c37","#000000","#0aebf3","#8a1c37"), name = "Habitat")+
+  #labs(title="USCa")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+```
+
+
+
+##### Trying to create an agriculture map combining TUSC and USCa####
+
+### Meeeh will not use! ###
+```{r}
+USC_agri<-f_long%>%
+filter(Genus %in% c("TUSC", "USCa")) %>%
+filter(mfd_areatype %in% c("Agriculture"))%>%
+filter(count>0)
+
+
+
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+USC_agri_map<- m+ 
+  geom_point(data = USC_agri,aes(x=longitude, 
+                                y=latitude, 
+                                fill = Genus,
+                                group = Genus,
+                                size=rel_abun
+  ), 
+  alpha = 0.4,
+  colour = 'black',
+  stroke = 0.8,
+  shape=21) + 
+    scale_size_continuous(range = c(1,10), limits=c(0.00001, 20), name = "% Read abundance", trans="identity") +
+  scale_fill_manual(values=c("#1898af", "#c4a20a"), name = "Taxonomy")+
+  labs(title="USCa")+
+  theme(plot.title = element_text(face="bold")) +
+  guides(fill = guide_legend(override.aes = list(size = 4)))
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/USC_agri_map.png",
+       USC_agri_map,
+        height = 7,
+  width = 10)
+```

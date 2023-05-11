@@ -1,9 +1,5 @@
 ```{r}
 
-#libpath<-"/user_data/kalinka/r_packages"
-#.libPaths(c(libpath, .libPaths()))
-#remotes::install_github("MadsAlbertsen/ampvis2")
-#install.packages("cowplot")
 library(ampvis2)
 library(cowplot)
 library(vroom)
