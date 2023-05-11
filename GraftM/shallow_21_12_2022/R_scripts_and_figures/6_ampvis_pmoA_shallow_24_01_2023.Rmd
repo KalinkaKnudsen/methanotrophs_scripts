@@ -598,7 +598,7 @@ heatmap2 <- amp_heatmap(d_s,
  group_by = "habitat_type",
  tax_aggregate = "Species",
  tax_show = 32,
- color_vector = c("white", "darkred"),
+ color_vector = c("white", "#b92f2f"),
  plot_colorscale = "sqrt",
  plot_values = TRUE,
  plot_values_size = 2.5) +
