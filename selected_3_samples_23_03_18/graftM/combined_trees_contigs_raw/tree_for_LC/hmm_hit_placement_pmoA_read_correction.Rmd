@@ -1,0 +1,249 @@
+```{r}
+library(plyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(dplyr)
+library(vroom)
+library(ggplot2)
+```
+
+
+
+```{r}
+hits_raw<-vroom("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/position_of_pmoA_hits.tsv", delim = "\t")
+hits_raw <- hits_raw %>%
+  mutate(Tax = trimws(str_extract(Tax, "[^;]*$")))
+
+hits_corrected<-vroom("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/position_of_pmoA_hits_corrected.tsv", delim = "\t")
+package<-vroom("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/package_length.tsv", delim = "\t")%>%
+mutate(Read="Database")%>%
+mutate(Sample="none")%>%
+mutate(Tax="none")%>%
+mutate(hmm_start=1)%>%
+mutate(hmm_end=1)%>%
+rename(Sequence="#name")%>%
+rename(Length=length)
+hits<-rbind(hits_raw, hits_corrected, package)%>%
+  mutate(Read = gsub("raw", "Raw", Read))%>%
+  mutate(Read = gsub("corrected", "Corrected", Read))
+```
+
+
+
+
+#### Looking at read length distribution across all 3 samples
+
+```{r}
+
+
+distribution_package <- ggplot(package, aes(x=Length, y = ..density.. ,color = Read, fill=Read)) +
+ geom_histogram(position="identity", alpha=0.5, binwidth = 3, linewidth=0.4)+
+   scale_fill_manual(values=c("#409181", "#a8a7a7"))+
+  scale_color_manual(values=c("#0084A9", "#969b99"))+
+    xlim(c(0,500))+
+    ylim(c(0,0.04))+
+  ylab("Relative no. of sequences")+
+  xlab("Length [aa]")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/dist_pack.png",
+       distribution_package,
+       height = 4,
+       width = 10)
+p_r<-hits%>%
+filter(Read %in% c("Database", "Raw"))
+
+distribution_p_r <- ggplot(p_r, aes(x=Length, y = ..density.. ,color = Read, fill=Read, alpha=Read)) +
+ geom_histogram(position="identity", binwidth = 3, linewidth=0.4)+
+   scale_fill_manual(values=c("#409181", "#a8a7a7"))+
+  scale_color_manual(values=c("#0084A9", "#969b99"))+
+  scale_alpha_manual(values=c(0.4,0.3))+
+    xlim(c(0,500))+
+    ylim(c(0,0.04))+
+  ylab("Relative no. of sequences")+
+  xlab("Length [aa]")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+  
+  distribution_p_r
+  
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/dist_p_r.png",
+       distribution_p_r,
+       height = 4,
+       width = 10)
+
+distribution_p_r_c <- ggplot(hits, aes(x=Length, y = ..density.. , color = Read, fill=Read, alpha=Read)) +
+ geom_histogram(position="identity", binwidth = 3, linewidth=0.4)+
+   scale_fill_manual(values=c("#5050af", "#409181","#a8a7a7"))+
+  scale_color_manual(values=c("#7474C2", "#0084A9", "#969b99"))+
+    scale_alpha_manual(values=c(0.4,0.3,0.3))+
+   #geom_vline(xintercept = 4372120, color="red")+
+    xlim(c(0,500))+
+    ylim(c(0,0.04))+
+  ylab("Relative no. of sequences")+
+  xlab("Length [aa]")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+distribution_p_r_c
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/dist_p_r_c.png",
+       distribution_p_r_c,
+       height = 4,
+       width = 10)
+```
+
+
+```{r}
+hits_pmoA1<-hits %>%
+filter(Tax=="Methylocystaceae_pmoA1")
+
+reads_by_position_pmoA <- hits_pmoA1 %>%
+              group_by(Read, Length) %>%
+              count() %>%
+  rename(Count=n) 
+
+
+hits_pmoA1<-hits %>%
+filter(Tax=="Methylocystaceae_pmoA1")
+
+
+
+distribution_pmoA1 <- ggplot(hits_pmoA1, aes(x=Length, color = Read, fill=Read)) +
+ geom_histogram(position="identity", alpha=0.4, binwidth = 4, linewidth=0.5)+
+  scale_fill_manual(values=c("#5050af", "#a8a7a7"))+
+  scale_color_manual(values=c("#7474C2", "#969b99"))+
+   #geom_vline(xintercept = 4372120, color="red")+
+    xlim(c(0,500))+
+  ylab("Frequency")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/pmoA1.png",
+       distribution_pmoA1,
+       height = 3,
+       width = 7)
+
+
+hits_usca<-hits %>%
+filter(Tax=="USCa")
+
+
+
+distribution_usca <- ggplot(hits_usca, aes(x=Length, color = Read, fill=Read)) +
+ geom_histogram(position="identity", alpha=0.5, binwidth = 4, linewidth=0.4)+
+  scale_fill_manual(values=c("#7474C2", "#737574"))+
+  scale_color_manual(values=c("#7474C2", "#969b99"))+
+   #geom_vline(xintercept = 4372120, color="red")+
+    xlim(c(0,500))+
+  ylab("Frequency")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/USCa.png",
+       distribution_usca,
+       height = 5,
+       width = 7)
+
+hits_hyp<-hits %>%
+filter(Tax=="Hyphomicrobiaceae_pmoA")
+
+
+
+distribution_hyp <- ggplot(hits_hyp, aes(x=Length, color = Read, fill=Read)) +
+ geom_histogram(position="identity", alpha=0.5, binwidth = 4, linewidth=0.4)+
+  scale_fill_manual(values=c("#7474C2", "#737574"))+
+  scale_color_manual(values=c("#7474C2", "#969b99"))+
+   #geom_vline(xintercept = 4372120, color="red")+
+    xlim(c(0,500))+
+  ylab("Frequency")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/Hyp.png",
+       distribution_hyp,
+       height = 5,
+       width = 7)
+
+
+
+distribution <- ggplot(hits, aes(x=Length, color = Read, fill=Read)) +
+ geom_histogram(position="identity", alpha=0.4, binwidth = 2, linewidth=0.5)+
+  scale_fill_manual(values=c("#5050af", "#a8a7a7"))+
+  scale_color_manual(values=c("#7474C2", "#969b99"))+
+   #geom_vline(xintercept = 4372120, color="red")+
+    xlim(c(0,500))+
+  ylab("Frequency")+
+  theme(axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size=14) )+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg#transparent legend panel
+  )
+
+  ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/tree_for_LC/pmoA/dist_all.png",
+       distribution,
+       height = 5,
+       width = 14)
+```
+
+```{r}
+#### I only want to look at specific groups #####
+
+
+position_pmoA1 <- ggplot(hits_pmoA1, aes(y = Sequence, x = hmm_start, colour=Read)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.4) +
+  scale_colour_manual(values=c("#9334d3","#6d8853"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples - updated mmoX graftM package") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 350) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+position_pmoA1
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_all_hits.png",
+       position_all,
+       height = 7,
+       width = 10)
+```

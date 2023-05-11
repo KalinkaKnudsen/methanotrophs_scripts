@@ -1,0 +1,137 @@
+```{r}
+
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+What is happening to the agriculture???
+```{r}
+
+d_new<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_new_meta.rds")
+d_old <-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_pmoA_old_graft_new_meta.rds")
+
+d_new$tax <- d_new$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+d_old$tax <- d_old$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+
+
+
+##### Det er her det crasher (som godt kan køres pca) ####
+
+a_new <- amp_subset_samples(d_new,
+  mfd_areatype %in% "Agriculture")
+
+a_old <- amp_subset_samples(d_old,
+  mfd_areatype %in% "Agriculture")
+
+
+hm_a_new <- amp_heatmap(a_new,
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+  normalise = FALSE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="GraftM package with contigs - Agriculture")
+
+hm_a_new
+
+hm_a_old <- amp_heatmap(a_old,
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+  normalise = FALSE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Old GraftM package - Agriculture")
+
+hm_a_old
+
+p<-plot_grid(hm_a_new, hm_a_old, ncol = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/pca_agriculture_removed.png",
+       p,
+        height = 6,
+  width = 18)
+
+##### Det her subset virker også fint fint ######
+
+
+d_new$tax <- d_new$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+d_old$tax <- d_old$tax %>%
+  mutate(Species = if_else(Species == "Root", "Root_remove", Species))%>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+
+tax_vector_new <- c("Root_remove","amoA", "Nitrospira", "Homologous_pmoA","Nitrosococcus", "Actinobacteria", "Root; pmoA_amoA_pxmA; pmoA", "Probably_hydrocarbon_monooxygenases", "Cycloclasticus", "Root; pmoA_amoA_pxmA; pxmA", "Root; pmoA_amoA_pxmA")
+f_new_removed <- amp_subset_taxa(d_new, tax_vector = tax_vector_new, remove = FALSE, normalise = TRUE)
+
+tax_vector_old<-c("Root; pmoA_amoA_pxmA_umbrella; pxmA_amoA; pxmA","Rhodobacter_cluster","Root; pmoA_amoA_pxmA_umbrella","Root; pmoA_amoA_pxmA_umbrella; pmoA","Cycloclasticus_bradhyrhizobium_cluster","Root_remove","Total_Count", "HMO_cluster", "amoA", "Betaproteobacteria_amoA", "Actinobacteria", "Cycloclasticus", "Nitrosococcus", "Nitrospira_clade_A", "Nitrospira_clade_B")
+f_old_removed <- amp_subset_taxa(d_old, tax_vector = tax_vector_old, remove = FALSE, normalise = TRUE)
+
+r_new <- amp_subset_samples(f_new_removed,
+  mfd_areatype %in% "Agriculture")
+
+r_old <- amp_subset_samples(f_old_removed,
+  mfd_areatype %in% "Agriculture")
+
+hm_r_new <- amp_heatmap(r_new,
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+  normalise = FALSE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="GraftM package with contigs - Agriculture")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+
+hm_r_old <- amp_heatmap(r_old,
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ normalise = FALSE,
+ plot_values_size = 2.5) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Old GraftM package - Agriculture")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(hm_r_new, hm_r_old, ncol = 2)
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/heatmap_agriculture_removed.png",
+       p,
+        height = 6,
+  width = 15)
+
+```

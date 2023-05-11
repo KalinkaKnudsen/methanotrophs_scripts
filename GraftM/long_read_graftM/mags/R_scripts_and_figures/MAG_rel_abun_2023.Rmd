@@ -1,0 +1,15 @@
+```{r}
+library(vroom)
+library(tidyverse)
+
+```
+
+
+
+Importing coverage file
+The genome is MFD03399_bin.c2
+```{r}
+contig_coverage<-vroom("/projects/microflora_danica/deep_metagenomes/assembly_info/MFD03399.tsv", delim = "\t")
+```
+And then the file that connects contigs to MAGs
+

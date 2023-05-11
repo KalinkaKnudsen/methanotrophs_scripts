@@ -1,0 +1,1126 @@
+```{r}
+
+#libpath<-"/user_data/kalinka/r_packages"
+#.libPaths(c(libpath, .libPaths()))
+#remotes::install_github("MadsAlbertsen/ampvis2")
+#install.packages("cowplot")
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+##Importing ampvis object
+```{r}
+#amp<-readRDS("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+#Running locally with;
+amp<-readRDS("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+amp$metadata <- amp$metadata %>%
+  mutate(mfd_hab2 = gsub("§3 mire", "Mire", mfd_hab2)) %>%
+  mutate(mfd_hab2 = gsub("Forrest \\(non-habitattype\\)", "Forrest", mfd_hab2))%>%
+  mutate(mfd_hab2=gsub("Fen wetland \\(non-habitat type\\)", "Fen wetland", mfd_hab2))%>%
+  mutate(mfd_hab2=gsub("Grasslands \\(non-habitat type\\)", "Grasslands",mfd_hab2))%>%
+  mutate(mfd_hab3=gsub("Roadside\\?", "Roadside",mfd_hab3))
+x<-amp$metadata
+```
+
+##### Subsetting to exclude "normalising_factor" ####
+
+```{r}
+
+tax_vector <- c("normalising_factor")
+amp_f <- amp_subset_taxa(amp, tax_vector = tax_vector, remove = TRUE, normalise = TRUE)
+amp_f$tax <- amp_f$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+```
+
+
+### Subsetting to remove the "unwanted" OTUs
+```{r}
+### One dataframe with amoA ###
+tax_vector_OTUs <- c("Homologous_MO",
+"pxmA",
+"Root_pmoA",
+"Homologous_mmoX",
+"Propane_MO",
+"Homologous_pmoA",
+"Actinobacteria",
+"Nitrosococcus",
+"Root_mmoX",
+"Butane_MO",
+"normalising_factor")
+
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = TRUE)
+#x<-f$tax
+
+f$tax <- f$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$"))) ###Just for easy plotting at "genus = last word" level
+f$tax
+
+###One dataframe without amoA ####
+tax_vector_amoA <- c("Homologous_MO", "Betaproteobacteria_amoA", "amoA", "Nitrospira_clade_B", "Nitrospira_clade_A",
+"pxmA",
+"Root_pmoA",
+"Homologous_mmoX",
+"Propane_MO",
+"Homologous_pmoA",
+"Actinobacteria",
+"Nitrosococcus",
+"Root_mmoX",
+"Butane_MO",
+"Root; pmoA_amoA_pxmA_umbrella",
+"normalising_factor")
+
+f_no_amoA <- amp_subset_taxa(amp, tax_vector = tax_vector_amoA, remove = TRUE, normalise = TRUE)
+
+f_no_amoA$tax <- f_no_amoA$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$"))) ###Just for easy plotting at "genus = last word" level
+f_no_amoA$mfd_hab2 <- ifelse(is.na(f_no_amoA$mfd_hab2), f_no_amoA$mfd_hab1, f_no_amoA$mfd_hab2)
+f_no_amoA$tax
+```
+
+
+####Creating pca for all samples with and without the filter ####
+
+```{r}
+
+#f_soil_sed <- amp_subset_samples(f,
+ # mfd_sampletype %in% c("Sediment", "Soil" ))
+
+pca_f<- amp_ordinate(data = f, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            opacity = 0.5,
+            species_plot = TRUE,
+           species_nlabels = 11,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.8,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#ad3838", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Ordination of all samples - AmoA included")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+
+pca_f_no_amoA<- amp_ordinate(data = f_no_amoA, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            opacity = 0.5,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.8,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#ad3838", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Ordination of all samples - AmoA excluded")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_f, pca_f_no_amoA, nrow = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/pca_mmoX_pmoA.png",
+       p,
+        height = 8,
+  width = 10)
+```
+
+
+############### Bogs, mires fens with/without amoA ############
+```{r}
+f_bmf <- amp_subset_samples(f,
+  mfd_hab1 %in% c("Bogs, mires and fens"))
+
+f_no_amoA_bmf<- amp_subset_samples(f_no_amoA,
+  mfd_hab1 %in% c("Bogs, mires and fens"))
+
+
+pca_f_bog_mire_fen<- amp_ordinate(data = f_bmf, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Bogs, mires and fens")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+
+pca_f_no_amoA_bog_mire_fen<- amp_ordinate(data = f_no_amoA_bmf, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Bogs, mires and fens - AmoA removed")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_f_bog_mire_fen, pca_f_no_amoA_bog_mire_fen, nrow = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/bog_mire_fen.png",
+       p,
+        height = 8,
+  width = 10)
+
+```
+
+#### Combining some of the natural soil samples ####
+```{r}
+
+nat_soil<- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Natural"))
+
+nat_soil <- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Natural"),
+  !is.na(mfd_hab2)) 
+
+#Combining heath and scrub and scherrelous scrub; (and rocky habitats and caves?)
+nat_scrub_heath_cave<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Sclerophyllus scrub", "Heath and scrub", "Rocky habitats and caves"))
+
+##Combining coastal and dunes;
+nat_coast_dune<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Coastal", "Dunes"))
+
+### Combining forrests and grasslands
+nat_forrests_grass<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Forrests", "Grassland formations"))
+
+
+##and just leaving bog, mire fen as is;
+nat_bmf<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Bogs, mires and fens"))
+
+pca_nat_coast_dune<- amp_ordinate(data = nat_coast_dune, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d","#1f0060"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Coastal and Dunes")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom", legend.spacing.x = unit(0.6, "cm"), legend.margin = margin(t = 0, r = 0, b = 0, l = 0)) +
+  guides(colour = guide_legend(nrow = 2, ncol = 2))
+
+pca_nat_scrub_heath_cave<- amp_ordinate(data = nat_scrub_heath_cave, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab3",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 8,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d","#1f0060"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Scrubs, Heaths, and Rocky habitats")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom", legend.spacing.x = unit(0.6, "cm")) +
+  guides(colour = guide_legend(nrow = 2, ncol = 2))
+
+pca_nat_bmf<- amp_ordinate(data = nat_bmf, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 8,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d","#1f0060"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Bogs, Mires, and Fens")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom", legend.spacing.x = unit(0.6, "cm")) +
+  guides(colour = guide_legend(nrow = 2, ncol = 2))
+
+pca_nat_forrests_grass<- amp_ordinate(data = nat_forrests_grass, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 8,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d", "#1a0060", "#c26129", "#5fa3ca"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Forrests and Grasslands")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom", legend.spacing.x = unit(0.6, "cm")) +
+  guides(colour = guide_legend(nrow = 2, ncol = 3))
+
+
+p<-plot_grid(pca_nat_bmf, pca_nat_scrub_heath_cave, pca_nat_coast_dune, pca_nat_forrests_grass, nrow = 2, ncol=2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/nat_2x2.png",
+       p,
+        height = 8,
+  width = 13)
+
+
+
+##### And making a corresponding heatmap! ####
+#I will try to combine the four dataframes instead...
+#Combining heath and scrub and scherrelous scrub; (and rocky habitats and caves?)
+nat_scrub_heath_cave$metadata<-nat_scrub_heath_cave$metadata%>%
+mutate(hab_group="Scrubs, Heaths, and\nRocky habitats")
+
+nat_coast_dune$metadata<- nat_coast_dune$metadata %>%
+mutate(hab_group="Coastal and Dunes")
+
+nat_forrests_grass$metadata<- nat_forrests_grass$metadata %>%
+mutate(hab_group="Forrests and\nGrasslands")
+
+nat_bmf$metadata<- nat_bmf$metadata %>%
+mutate(hab_group="Bogs, Mires, and Fens")
+
+nat<-amp_merge_ampvis2(nat_scrub_heath_cave, nat_coast_dune, nat_forrests_grass, nat_bmf, by_refseq = FALSE)
+#nat$metadata$hab_group
+
+
+string<-nat$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+
+hm_nat <- amp_heatmap(nat,
+ facet_by = "hab_group",
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "log10",
+ plot_values = TRUE,
+ plot_values_size = 3.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ max_abundance = 5,
+ normalise = FALSE) +
+  theme(axis.text.x = element_text(angle = 45, size = 11, vjust = 1),
+        axis.text.y = element_text(size = 10),
+        legend.position = "right",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size=12),
+         strip.text = element_text(size = 12, face = "bold"))
+
+
+ ggsave("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/Thesis/Habitat_diversity/hm_nat_2x2_log10.png",
+       hm_nat,
+        height = 10,
+  width = 14)
+
+ hm_nat <- amp_heatmap(nat,
+ facet_by = "hab_group",
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 3.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.01,
+ max_abundance = 5,
+ normalise = FALSE) +
+  theme(axis.text.x = element_text(angle = 45, size = 11, vjust = 1),
+        axis.text.y = element_text(size = 10),
+        legend.position = "right",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size=12),
+         strip.text = element_text(size = 12, face = "bold"))
+
+
+ ggsave("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/Thesis/Habitat_diversity/hm_nat_2x2_sqrt.png",
+       hm_nat,
+        height = 10,
+  width = 14)
+
+```
+
+
+###### Doing sediment samples #####
+
+```{r}
+#All sediment samples
+sediment<- amp_subset_samples(f_no_amoA,
+  mfd_sampletype %in% c("Sediment"))
+sediment$metadata$mfd_areatype
+
+##Combination would make sense is mfd_hab2 and mfd_areatype (urban/natural)
+
+
+##Combining salt and freshwater
+
+pca_sediment<- amp_ordinate(data = sediment, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_areatype",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.5,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d", "#1a0060", "#c26129", "#5fa3ca"), name = "Habitat", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Sediment samples")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  guides(color = guide_legend(order = 2), shape = guide_legend(order = 1))
+
+
+#### Then zooming in on the standing freshwater samples!
+
+sta_fresh<- amp_subset_samples(f_no_amoA,
+  mfd_hab2 %in% c("Standing freshwater"))
+sta_fresh$metadata$mfd_hab3
+
+pca_sta_fresh<- amp_ordinate(data = sta_fresh, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab3",
+            sample_shape_by = "mfd_areatype",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 10,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.5,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#a5e73b", "#4d6922", "#240dee", "#1a0060", "#5fa3ca", "#3063d1","#0c486b","#fa7509","#bb2621","#c20d43"), name = "Habitat", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Standing freshwater")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  guides(color = guide_legend(order = 2), shape = guide_legend(order = 1))
+
+p<-plot_grid(pca_sediment, pca_sta_fresh, nrow = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/pca_sediment_fresh.png",
+       p,
+        height = 9,
+  width = 10)
+
+
+```
+
+
+#### Agriculture samples #####
+
+
+```{r}
+#All agri samples
+agri<- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Agriculture"))
+#table(agri$metadata$mfd_hab2)
+
+##Combination would make sense is mfd_hab2
+##Perhaps dive into Poales, Cereal
+
+##Agri AmoA
+agri_amoA<- amp_subset_samples(f,
+  mfd_areatype %in% c("Agriculture"))
+
+pca_agri<- amp_ordinate(data = agri, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.5,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#99fa07", "#ba73ea", "#f1dd21",
+"#073ff5","#1ec3ec","#36bb98","#ca2b2b","#4e772c", "#f507f5"), name = "Habitat", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Agriculture samples - AmoA excluded")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+
+
+pca_agri_amoA<- amp_ordinate(data = agri_amoA, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 8,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.5,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#99fa07", "#ba73ea", "#f1dd21",
+"#073ff5","#1ec3ec","#36bb98","#ca2b2b","#4e772c", "#f507f5"), name = "Habitat", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Agriculture samples - AmoA included")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+p<-plot_grid(pca_agri_amoA, pca_agri, nrow = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/pca_agri.png",
+       p,
+        height = 7.5,
+  width = 9)
+
+
+
+#### And then diving into the Poales cereal with amoA;
+cereal<- amp_subset_samples(f,
+  mfd_hab2 %in% c("Poales, Cereal"))
+#table(cereal$metadata$mfd_hab3)
+
+pca_cereal_amoA<- amp_ordinate(data = cereal, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3.5,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+            scale_color_manual(values=c("#87b442", "#01ff16", "#355e08",
+"#11b18e","#128160","#36a7bb","#2b8aca","#0c48f0", "#660eca",
+"#910696","#be159a","#96095b","#f50762","#d81919","#da5724","#f5dd07"), name = "Habitat", na.translate = FALSE)+
+  labs(title="Soil samples from cereal fields - AmoA included")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/cereal.png",
+       pca_cereal_amoA,
+        height = 6,
+  width = 10)
+
+```
+
+
+#### Urban samples #####
+
+
+```{r}
+#All sediment samples
+urban<- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Urban"), mfd_sampletype %in% c("Soil"))
+table(urban$metadata$mfd_hab3)
+
+##Combination would make sense is mfd_hab2 shape and mfd_hab3 color
+
+
+##Combining salt and freshwater
+
+pca_urban<- amp_ordinate(data = urban, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab3",
+            sample_shape_by = "mfd_hab2",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 7,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#1eaa11", "#941919", "#03178a"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Urban soil samples")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/urban_soil.png",
+       pca_urban,
+        height = 5,
+  width = 8)
+
+```
+
+
+
+
+
+
+
+
+
+
+####### Diving into the natural soil samples ########
+
+```{r}
+
+m<-f$metadata
+
+f_nat <- amp_subset_samples(f,
+  mfd_areatype %in% c("Natural" ))
+
+
+pca_f_nat<- amp_ordinate(data = f_nat, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 14,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d","#666664","#0db2ee","#ee0d0d","#0d85ee","#eed70d","#0f0f0e","#2fee0d","#ee0dbd","#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Natural soil")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+pca_f_nat
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/nat_soil_pca.png",
+       pca_f_nat,
+        height = 10,
+  width = 12)
+
+f_meta_bog_mire_fen<-f$metadata%>%
+filter(mfd_hab1 %in% c("Bogs, mires and fens"))%>%
+filter(!is.na(mfd_hab2))
+
+f_bog_mire_fen <- amp_load(otutable = f$abund, metadata = f_meta_bog_mire_fen, taxonomy = f$tax)
+
+pca_f_bog_mire_fen<- amp_ordinate(data = f_bog_mire_fen, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 30,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Bogs, mires and fens")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+pca_f_bog_mire_fen
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/bog_mire_fen_pca.png",
+       pca_f_bog_mire_fen,
+        height = 5,
+  width = 10)
+
+#### And a heatmap to match 
+
+string<-f_bog_mire_fen$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+hm_bog_mire <- amp_heatmap(f_bog_mire_fen,
+  #facet_by = "mfd_hab1",
+ group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+hm_bog_mire
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/bog_mire_fen_heatmap.png",
+       hm_bog_mire,
+        height = 7,
+  width = 4.8)
+```
+
+
+##### Trying constraints #####
+
+```{r}
+f_urban <- amp_subset_samples(f,
+  mfd_areatype %in% c("Urban"))
+
+
+rda_fu<- amp_ordinate(data = f_urban, 
+            type = "RDA", 
+            transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            opacity = 0.6,
+           constrain = c("mfd_hab1"),
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat Class. 2")+
+scale_shape_discrete(name="Habitat Class. 1")+
+  labs(title="Urban RDA - Constrained by Habitat Class. 1")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+rda_fu
+
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/rda_urban_mmoX_pmoA.png",
+       rda_fu,
+        height = 6,
+  width = 10)
+
+
+pca_fu<- amp_ordinate(data = f_urban, 
+            type = "PCA", 
+            transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            sample_shape_by = "mfd_hab1",
+            opacity = 0.6,
+                        species_plot = TRUE,
+           species_nlabels = 17,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat Class. 2")+
+scale_shape_discrete(name="Habitat Class. 1")+
+  labs(title="Urban PCA")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(pca_fu, rda_fu, nrow = 2)
+p
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/urban_pca_rda_mmoX_pmoA.png",
+       p,
+        height = 8,
+  width = 13)
+
+pca_f<- amp_ordinate(data = f_soil_sed, 
+            type = "PCA", 
+            transform = "hellinger", 
+            sample_color_by = "mfd_areatype",
+            sample_shape_by = "mfd_sampletype",
+            opacity = 0.6,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea",
+"#d45828",
+"#0092f3",
+"#01b5b7",
+"#dec7b0",
+"#1d0b00"), name = "Habitat")+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="GraftM package with contigs - Constrained by sampletype")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+pca_f
+
+p<-plot_grid(pca_all, pca_f, ncol = 2)
+
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/pca_mmoX_pmoA.png",
+       p,
+        height = 5,
+  width = 18)
+```
+
+
+
+
+
+
+################### Old code no longer in use #######################
+
+
+
+##### Natural soil 3 x 3 #######
+
+```{r}
+nat_soil<- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Natural"))
+x<-nat_soil$metadata
+table(x$mfd_hab1)
+#-- No rocky habitats and caves. So 3x3
+nat_bmf<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Bogs, mires and fens"))
+nat_coast<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Coastal"))
+nat_dune<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Dunes"))
+nat_Forrests<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Forrests"))
+nat_Freshwater<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Freshwater"))
+nat_grass<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Grassland formations"))
+nat_heath<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Heath and scrub"))
+nat_Saltwater<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Saltwater"))
+nat_scrub<- amp_subset_samples(nat_soil,
+  mfd_hab1 %in% c("Sclerophyllus scrub"))
+
+pca_nat_coast<- amp_ordinate(data = nat_coast, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Coastal")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+
+pca_nat_dune<- amp_ordinate(data = nat_dune, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Dunes")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+pca_nat_Forrests<- amp_ordinate(data = nat_Forrests, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Forrests")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+
+pca_nat_Freshwater<- amp_ordinate(data = nat_Freshwater, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Freshwater")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+pca_nat_grass<- amp_ordinate(data = nat_grass, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Grassland formation")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+pca_nat_heath<- amp_ordinate(data = nat_heath, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Heath and scrub")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+pca_nat_Saltwater<- amp_ordinate(data = nat_Saltwater, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Saltwater")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+pca_nat_scrub<- amp_ordinate(data = nat_scrub, 
+            type = "PCA", 
+             transform = "hellinger", 
+            sample_color_by = "mfd_hab2",
+            #sample_shape_by = "mfd_hab3",
+            opacity = 0.6,
+            species_plot = TRUE,
+           species_nlabels = 15,
+           species_label_taxonomy = "Genus",
+           species_label_size = 3,
+           species_label_color = "black",
+           species_rescale = TRUE,
+           filter_species=0,
+            size=10) +
+  scale_color_manual(values=c("#697e47", "#913636", "#eed70d",
+"#1f0060",
+"#00c18d",
+"#ec60c0",
+"#004563",
+"#8773ea"), name = "", na.translate = FALSE)+
+scale_shape_discrete(name="Sample Type")+
+  labs(title="Sclerophyllus scrub")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"), legend.position = "bottom")
+
+
+
+
+p<-plot_grid(pca_nat_bmf, pca_nat_coast, pca_nat_dune, pca_nat_Forrests, pca_nat_Freshwater, pca_nat_grass, pca_nat_heath, pca_nat_Saltwater, pca_nat_scrub,
+nrow = 3, ncol=3)
+
+ 
+ ggsave("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/nat_9x9.png",
+       p,
+        height = 15,
+  width = 15)
+
+```

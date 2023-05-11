@@ -1,0 +1,75 @@
+```{r}
+library(tidyverse)
+library(vroom) #For loading large data faster
+library(gridExtra) #For plotting
+```
+
+##### mmoX_all ######
+
+```{r}
+hits<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_all_mmoX_hits.tsv", delim = "\t")
+```
+
+
+
+```{r}
+hits <- hits %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_all <- ggplot(hits, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.4) +
+  scale_colour_manual(values=c("#5a9103","#3c4732","#3c4768","#858584",
+  "#30304d" , "#b6f798", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b" ), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples - updated mmoX graftM package") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 525) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_all_hits.png",
+       position_all,
+       height = 7,
+       width = 10)
+```
+
+##### mmoX_only_good_hits ######
+
+```{r}
+hits<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_mmoX_hits.tsv", delim = "\t")
+```
+
+
+
+```{r}
+hits <- hits %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position <- ggplot(hits, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 2) +
+  scale_colour_manual(values=c("#5a9103","#dd6f3c","#6382e0","#714080",
+  "#30304d" , "#914c4c"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples - updated mmoX graftM package") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 525) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_hits.png",
+       position,
+       height = 4,
+       width = 12)
+```
+
+```{r}
+coverage <- hits %>%
+  group_by(hmm_start:hmm_end) %>%
+  summarise(count = n()) %>%
+  ungroup()
+```

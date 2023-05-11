@@ -1,0 +1,129 @@
+```{r}
+library(tidyverse)
+library(vroom) #For loading large data faster
+library(gridExtra) #For plotting
+```
+
+##### mmoX_only_good_hits ######
+
+```{r}
+hits<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_bog_samples/position_of_mmoX_hits.tsv", delim = "\t")
+hits <- hits %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+```
+
+
+
+```{r}
+
+position <- ggplot(hits, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 1) +
+  scale_colour_manual(values=c("#b45494","#eecc09","#0f44f3","#fc0505",
+  "#6d6deb" , "#61a00f", "#ea8706", "#999841", "#243f0b", "#702020"), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 119 Sphagnum acid bog samples - updated mmoX graftM package") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 525) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_bog_samples/position_of_bog_hits.png",
+       position,
+       height = 10,
+       width = 12)
+```
+
+
+
+##### mmoX_all ######
+
+```{r}
+hits_all<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_bog_samples/position_of_all_mmoX_hits.tsv", delim = "\t")
+```
+
+
+
+```{r}
+hits <- hits %>%
+  mutate(tax_label = str_extract(Tax, "[^;]*$"))
+
+position_all <- ggplot(hits, aes(y = Sequence, x = hmm_start, colour=tax_label)) +
+  geom_segment(aes(yend=Sequence , xend = hmm_end), linewidth = 0.4) +
+  scale_colour_manual(values=c("#5a9103","#3c4732","#3c4768","#858584",
+  "#30304d" , "#b6f798", "#ea8706", "#cfcc12", "#587041", "#702020","#4e54ad",
+  "#ef0909", "#ef7809", "#e74141", "#092cef","#97999b" ), name="Taxonomy") +
+  labs(x = "Position")+
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(),axis.ticks.length.y = unit(0, "mm"))+ 
+  theme(legend.position = "right") +
+  ggtitle("Subset of 359 agriculture samples - updated mmoX graftM package") +
+  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(size = 12, color="black"), axis.title.x = element_text(size=14, color="black")) +
+  xlim(0, 525) +
+  guides(colour = guide_legend(override.aes = list(size = 7)))
+
+  ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/position_of_all_hits.png",
+       position_all,
+       height = 7,
+       width = 10)
+```
+
+
+
+###### Trying to convert this to coverage profile ######
+```{r}
+
+# Step 1: create a new data frame with every position of the gene
+gene_positions <- hits %>%
+  summarise(start = min(hmm_start),
+            end = max(hmm_end)) %>%
+  expand(position = seq(start, end))
+
+# Step 2: join the original data frame with the new data frame
+reads_by_position <- gene_positions %>%
+  left_join(hits %>% 
+              mutate(position = map2(hmm_start, hmm_end, seq)) %>%
+              unnest(position) %>%
+              count(position)) %>%
+  replace_na(list(n = 0))
+
+# Step 3: Summarize the number of reads for each position
+reads_summary <- reads_by_position %>%
+  group_by(position) %>%
+  summarise(total_reads = sum(n))
+
+# Step 4: Visualize the distribution of reads along the gene
+ggplot(reads_summary, aes(x = position, y = total_reads)) + 
+  geom_line()
+```
+
+###### And then coverage profile for each taxonomic group #####
+
+```{r}
+
+# Step 1: Create a data frame with every position of the gene
+gene_positions <- hits %>%
+  summarise(start = min(hmm_start),
+            end = max(hmm_end)) %>%
+  expand(position = seq(start, end))
+
+# Step 2: Join the gene_positions data frame with the hits data frame and group by "tax_label"
+reads_by_position <- gene_positions %>%
+  left_join(hits %>% 
+              mutate(position = map2(hmm_start, hmm_end, seq)) %>%
+              unnest(position) %>%
+              group_by(position, tax_label) %>%
+              count()) %>%
+  replace_na(list(n = 0))
+
+# Step 3: Summarize the number of reads for each position and tax_label
+reads_summary <- reads_by_position %>%
+  group_by(position, tax_label) %>%
+  summarise(total_reads = sum(n))
+
+# Step 4: Visualize the distribution of reads along the gene by tax_label
+ggplot(reads_summary, aes(x = position, y = total_reads, color = tax_label)) + 
+  geom_line()
+```

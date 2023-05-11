@@ -1,0 +1,284 @@
+```{r}
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+################### mmoX ############################
+
+##Importing otu tables and generating an ampvis object. Exporting the ampvis objects and making a difference dataframe ##
+```{r}
+otutable_mmoX_hmm_diamond_bog <-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_bog_samples/combined_count_table_mmoX.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+otutable_mmoX_hmm_bog<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/bog_samples/combined_count_table_mmoX_bog.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+
+otutable_mmoX_hmm_diamond_agri <-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/test_package_agri_samples/combined_count_table_mmoX.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+otutable_mmoX_hmm_agri<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/agri_samples/combined_count_table_mmoX_agri.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+
+
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = seq_id) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype) ###Remove samples with no sample type
+
+taxonomy_bog <- data.frame(matrix(ncol = 8, nrow = 15))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_bog) <- x
+taxonomy_bog$OTU<-otutable_mmoX_hmm_bog$OTU
+taxonomy_bog <- taxonomy_bog %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_bog$Species<-taxonomy_bog$OTU
+
+taxonomy_agri <- data.frame(matrix(ncol = 8, nrow = 13))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_agri) <- x
+taxonomy_agri$OTU<-otutable_mmoX_hmm_agri$OTU
+taxonomy_agri <- taxonomy_agri %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_agri$Species<-taxonomy_agri$OTU
+
+amp_hmm_agri <- amp_load(otutable = otutable_mmoX_hmm_agri, metadata = metadata, taxonomy = taxonomy_agri)
+amp_hmm_diamond_agri <- amp_load(otutable = otutable_mmoX_hmm_diamond_agri, metadata = metadata, taxonomy = taxonomy_agri)
+amp_hmm_bog <- amp_load(otutable = otutable_mmoX_hmm_bog, metadata = metadata, taxonomy = taxonomy_bog)
+amp_hmm_diamond_bog <- amp_load(otutable = otutable_mmoX_hmm_diamond_bog, metadata = metadata, taxonomy = taxonomy_bog)
+
+amp_hmm_agri$metadata <- amp_hmm_agri$metadata%>%
+mutate(model="HMM")
+amp_hmm_diamond_agri$metadata <- amp_hmm_diamond_agri$metadata%>%
+mutate(model="HMM&DIAMOND")
+amp_hmm_bog$metadata <- amp_hmm_bog$metadata%>%
+mutate(model="HMM")
+amp_hmm_diamond_bog$metadata <- amp_hmm_diamond_bog$metadata%>%
+mutate(model="HMM&DIAMOND")
+
+amp_hmm<-amp_merge_ampvis2(amp_hmm_agri,amp_hmm_bog, by_refseq = FALSE)
+amp_diamond<-amp_merge_ampvis2(amp_hmm_diamond_agri,amp_hmm_diamond_bog, by_refseq = FALSE)
+
+amp_hmm$tax <- amp_hmm$tax %>%
+ mutate(Genus = str_extract(OTU, "[^;]*$") %>% str_trim())
+amp_diamond$tax <- amp_diamond$tax %>%
+ mutate(Genus = str_extract(OTU, "[^;]*$") %>% str_trim())
+
+hmm_long <- amp_export_long(amp_hmm, metadata_vars = c("SeqId","fieldsample_barcode", "model", "mfd_hab1", "mfd_hab2"), tax_levels=c("OTU", "Genus"))  
+diamond_long <- amp_export_long(amp_diamond, metadata_vars = c("SeqId","fieldsample_barcode", "model", "mfd_hab1", "mfd_hab2"), tax_levels=c("OTU", "Genus"))  
+
+long <- bind_rows(hmm_long, diamond_long)
+
+long_diff <- long %>%
+  group_by(SeqId, Genus, mfd_hab1) %>%
+  summarize(diff_count = max(count) - min(count)) # calculate the difference in count between max and min
+
+```
+
+### Trying to plot the differences ###
+```{r}
+
+barplot_mmoX_diff<- ggplot(long_diff, aes(x = SeqId, y = diff_count, fill = mfd_hab1)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#852424","#727a5b"), name="MFD Habitat_2")+      
+  facet_wrap(~ Genus)+
+  ggtitle("Difference in mmoX reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))+
+  scale_y_log10()
+
+barplot_mmoX_diff
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/mmoX_all_diff.png",
+       barplot_mmoX_diff,
+        height = 7,
+  width = 11) 
+
+##### Now, I want to filter my dataframe long_diff to not include the values "Actinomycetes", "Homologous_mmoX", "Propane_monooxygenase" in the "Genus" column ##
+##And then subset all cases where the diff_count is more than 0"
+## And selecting the SeqId
+
+
+long_diff_filtered <- long_diff %>%
+  filter(diff_count > 0) %>%
+  filter(!Genus %in% c("Actinomycetes", "Homologous_mmoX", "Propane_monooxygenase", "Root_mmoX", "Butane_monooxygenase"))
+
+barplot_mmoX_diff2<- ggplot(long_diff_filtered, aes(x = SeqId, y = diff_count, fill = mfd_hab1)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#852424","#727a5b"), name="Habitat")+      
+  facet_wrap(~ Genus, ncol = 3, nrow = 3)+
+  ggtitle("Difference in mmoX reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/mmoX_diff_selection_reads.png",
+       barplot_mmoX_diff2,
+        height = 7,
+  width = 11) 
+### And then extracting the samples from the "long" dataframe###
+long_selection <- long %>%
+  semi_join(long_diff_filtered, by = c("SeqId","Genus")) %>%
+   filter(count > 0)
+
+barplot_mmoX_diff_selection<- ggplot(long_selection, aes(x = SeqId, y = count, fill = model)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#397d88","#8d7637"), name="Search Model")+      
+  facet_wrap(~ Genus, ncol = 3, nrow = 3)+
+  ggtitle("Total reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+barplot_mmoX_diff_selection
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/mmoX_selection_reads.png",
+       barplot_mmoX_diff_selection,
+        height = 4,
+  width = 15) 
+```
+
+
+
+################### pmoA ############################
+
+##Importing otu tables and generating an ampvis object. Exporting the ampvis objects and making a difference dataframe ##
+```{r}
+otutable_pmoA_hmm_diamond_bog <-vroom("/user_data/kalinka/GraftM/GraftM_packages/placement_bogs_16_02_2023/combined_count_table_pmoA_bog.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_pmoA", OTU))
+otutable_pmoA_hmm_bog<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/bog_samples/combined_count_table_pmoA_bog.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_pmoA", OTU))
+
+otutable_pmoA_hmm_diamond_agri <-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/agri_samples/combined_count_table_pmoA_agri_diamond.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_pmoA", OTU))
+otutable_pmoA_hmm_agri<-vroom("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/agri_samples/combined_count_table_pmoA_agri.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_pmoA", OTU))
+
+
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = seq_id) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype) ###Remove samples with no sample type
+
+taxonomy_bog <- data.frame(matrix(ncol = 8, nrow = 31))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_bog) <- x
+taxonomy_bog$OTU<-otutable_pmoA_hmm_bog$OTU
+taxonomy_bog <- taxonomy_bog %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_bog$Species<-taxonomy_bog$OTU
+
+taxonomy_agri <- data.frame(matrix(ncol = 8, nrow = 35))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_agri) <- x
+taxonomy_agri$OTU<-otutable_pmoA_hmm_agri$OTU
+taxonomy_agri <- taxonomy_agri %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_agri$Species<-taxonomy_agri$OTU
+
+amp_hmm_agri <- amp_load(otutable = otutable_pmoA_hmm_agri, metadata = metadata, taxonomy = taxonomy_agri)
+amp_hmm_diamond_agri <- amp_load(otutable = otutable_pmoA_hmm_diamond_agri, metadata = metadata, taxonomy = taxonomy_agri)
+amp_hmm_bog <- amp_load(otutable = otutable_pmoA_hmm_bog, metadata = metadata, taxonomy = taxonomy_bog)
+amp_hmm_diamond_bog <- amp_load(otutable = otutable_pmoA_hmm_diamond_bog, metadata = metadata, taxonomy = taxonomy_bog)
+
+amp_hmm_agri$metadata <- amp_hmm_agri$metadata%>%
+mutate(model="HMM")
+amp_hmm_diamond_agri$metadata <- amp_hmm_diamond_agri$metadata%>%
+mutate(model="HMM&DIAMOND")
+amp_hmm_bog$metadata <- amp_hmm_bog$metadata%>%
+mutate(model="HMM")
+amp_hmm_diamond_bog$metadata <- amp_hmm_diamond_bog$metadata%>%
+mutate(model="HMM&DIAMOND")
+
+amp_hmm<-amp_merge_ampvis2(amp_hmm_agri,amp_hmm_bog, by_refseq = FALSE)
+amp_diamond<-amp_merge_ampvis2(amp_hmm_diamond_agri,amp_hmm_diamond_bog, by_refseq = FALSE)
+
+amp_hmm$tax <- amp_hmm$tax %>%
+ mutate(Genus = str_extract(OTU, "[^;]*$") %>% str_trim())
+amp_diamond$tax <- amp_diamond$tax %>%
+ mutate(Genus = str_extract(OTU, "[^;]*$") %>% str_trim())
+
+hmm_long <- amp_export_long(amp_hmm, metadata_vars = c("SeqId","fieldsample_barcode", "model", "mfd_hab1", "mfd_hab2"), tax_levels=c("OTU", "Genus"))  
+diamond_long <- amp_export_long(amp_diamond, metadata_vars = c("SeqId","fieldsample_barcode", "model", "mfd_hab1", "mfd_hab2"), tax_levels=c("OTU", "Genus"))  
+
+long <- bind_rows(hmm_long, diamond_long)
+
+long_diff <- long %>%
+  group_by(SeqId, Genus, mfd_hab1) %>%
+  summarize(diff_count = max(count) - min(count)) # calculate the difference in count between max and min
+
+```
+
+### Trying to plot the differences ###
+```{r}
+
+barplot_pmoA_diff<- ggplot(long_diff, aes(x = SeqId, y = diff_count, fill = mfd_hab1)) +
+  geom_bar(stat = "identity", position=position_dodge(), width = 3) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#789c3e","#397d88", "#852424"), name="MFD Habitat_2")+      
+  facet_wrap(~ Genus)+
+  ggtitle("Difference in pmoA reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+barplot_pmoA_diff
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/pmoA_all_diff.png",
+       barplot_pmoA_diff,
+        height = 7,
+  width = 13)
+
+##### Now, I want to filter my dataframe long_diff to not include the values "Actinomycetes", "Homologous_mmoX", "Propane_monooxygenase" in the "Genus" column ##
+##And then subset all cases where the diff_count is more than 0"
+## And selecting the SeqId
+
+long_diff_filtered <- long_diff %>%
+  filter(diff_count > 0) %>%
+  filter(!Genus %in% c("perhaps_ethylene_cluster","Nitrospira","Root_pmoA","Probably_hydrocarbon_monooxygenases", "Nitrospira_clade_A", "Nitrospira_clade_B", "Nitrosococcus", "Homologous_pmoA","Homologous_perhaps_burkholderiales","HMO_group_1","HMO_cluster","Cycloclasticus_bradhyrhizobium_cluster","Betaproteobacteria_amoA","amoA","Actinobacteria",""))
+
+barplot_mmoX_diff2<- ggplot(long_diff_filtered, aes(x = SeqId, y = diff_count, fill = mfd_hab1)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#397d88","#8d7637"), name="Habitat")+      
+  facet_wrap(~ Genus, ncol = 6, nrow = 3)+
+  ggtitle("Difference in pmoA reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/pmoA_diff_selection_reads.png",
+       barplot_mmoX_diff2,
+        height = 5,
+  width = 13) 
+### And then extracting the samples from the "long" dataframe###
+long_selection <- long %>%
+  semi_join(long_diff_filtered, by = c("SeqId","Genus")) %>%
+   filter(count > 0)
+
+barplot_pmoA_diff_selection<- ggplot(long_selection, aes(x = SeqId, y = count, fill = model)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+   theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), axis.title.x = element_blank())+
+  scale_fill_manual(values=c("#397d88","#8d7637"), name="Search Model")+      
+  facet_wrap(~ Genus, ncol = 6, nrow = 3)+
+  ggtitle("Total reads detected by HMM and HMM&DIAMOND") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+barplot_pmoA_diff_selection
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/mmoX_15_02_2023/without_diamond_search_method_01_03_2023/pmoA_selection_reads.png",
+       barplot_pmoA_diff_selection,
+        height = 10,
+  width = 15) 
+```

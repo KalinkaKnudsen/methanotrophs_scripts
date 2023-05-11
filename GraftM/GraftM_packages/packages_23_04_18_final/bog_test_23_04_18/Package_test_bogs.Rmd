@@ -1,0 +1,245 @@
+```{r}
+
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+
+
+###### Importing OTU tables and metadata ######
+```{r}
+otutable_pmoA_e10 <-vroom("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/combined_count_table_pmoA_e10.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)
+
+otutable_pmoA_e5 <-vroom("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/combined_count_table_pmoA_e5.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)
+
+otutable_mmoX_e10 <-vroom("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/combined_count_table_mmoX_e10.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)
+
+otutable_mmoX_e5 <-vroom("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/combined_count_table_mmoX_e5.txt", delim = "\t")%>%
+rename(OTU = ConsensusLineage)
+
+metadata<-readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = seq_id) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype)
+
+
+```
+
+Generating taxonomy files
+```{r}
+
+taxonomy_pmoA_e10 <- data.frame(matrix(ncol = 8, nrow = 22))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_pmoA_e10) <- x
+taxonomy_pmoA_e10$OTU<-otutable_pmoA_e10$OTU
+taxonomy_pmoA_e10 <- taxonomy_pmoA_e10 %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_pmoA_e10$Species<-taxonomy_pmoA_e10$OTU
+
+taxonomy_mmoX_e10 <- data.frame(matrix(ncol = 8, nrow = 15))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy_mmoX_e10) <- x
+taxonomy_mmoX_e10$OTU<-otutable_mmoX_e10$OTU
+taxonomy_mmoX_e10 <- taxonomy_mmoX_e10 %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy_mmoX_e10$Species<-taxonomy_mmoX_e10$OTU
+
+```
+
+Loading them as ampvis elements
+```{r}
+pmoA_e10 <- amp_load(otutable = otutable_pmoA_e10, metadata = metadata, taxonomy = taxonomy_pmoA_e10, normalise=FALSE)
+mmoX_e10 <- amp_load(otutable = otutable_mmoX_e10, metadata = metadata, taxonomy = taxonomy_mmoX_e10, normalise=FALSE)
+pmoA_e5 <- amp_load(otutable = otutable_pmoA_e5, metadata = metadata, taxonomy = taxonomy_pmoA_e10, normalise=FALSE)
+mmoX_e5 <- amp_load(otutable = otutable_mmoX_e5, metadata = metadata, taxonomy = taxonomy_mmoX_e10, normalise=FALSE)
+
+pmoA_e10$tax <- pmoA_e10$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+mmoX_e10$tax <- mmoX_e10$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+
+pmoA_e5$tax <- pmoA_e5$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+mmoX_e5$tax <- mmoX_e5$tax %>%
+  mutate(Genus = trimws(str_extract(OTU, "[^;]*$")))
+
+
+```
+
+
+
+
+#### Now just creating a very general heatmap of the samples divided into mfd_hab3###
+
+```{r}
+string<-pmoA_e10$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+hm_pmoA_e10 <- amp_heatmap(pmoA_e10,
+ group_by = "unified",
+ tax_aggregate = "Genus",
+ tax_show = 22,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 0,
+ order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="none")+
+  labs(title="New Package e-10  Sphagnum acid bogs")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+hm_pmoA_e5 <- amp_heatmap(pmoA_e5,
+ group_by = "unified",
+ tax_aggregate = "Genus",
+ tax_show = 22,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 0,
+ order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="none")+
+  labs(title="New Package e-5  Sphagnum acid bogs")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(hm_pmoA_e10, hm_pmoA_e5, ncol = 2)
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/pmoA.png",
+       p,
+       height = 10,
+       width = 12)
+
+#### mmoX #####
+string<-mmoX_e10$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+hm_mmoX_e10 <- amp_heatmap(mmoX_e10,
+ group_by = "unified",
+ tax_aggregate = "Genus",
+ tax_show = 15,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="none")+
+  labs(title="New Package e-10  Sphagnum acid bogs")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+hm_mmoX_e5 <- amp_heatmap(mmoX_e5,
+ group_by = "unified",
+ tax_aggregate = "Genus",
+ tax_show = 15,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ order_y_by = rev(genus_string),
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="none")+
+  labs(title="New Package e-5  Sphagnum acid bogs")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+p<-plot_grid(hm_mmoX_e10, hm_mmoX_e5, ncol = 2)
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/mmoX.png",
+       p,
+       height = 8,
+       width = 12)
+```
+
+
+
+##### Okay now I want to calculate the difference between the groups #####
+```{r}
+
+
+otutable_mmoX_e5_long<-otutable_mmoX_e5 %>%
+  pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Count") %>%
+  mutate(Error = "1e-5")
+
+otutable_mmoX_e10_long<-otutable_mmoX_e10 %>%
+  pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Count") %>%
+  mutate(Error = "1e-10")
+
+otutable_pmoA_e5_long<-otutable_pmoA_e5 %>%
+  pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Count") %>%
+  mutate(Error = "1e-5")
+
+otutable_pmoA_e10_long<-otutable_pmoA_e10 %>%
+  pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Count") %>%
+  mutate(Error = "1e-10")
+
+
+pmoA_diff <- merge(otutable_pmoA_e5_long, otutable_pmoA_e10_long, by = c("OTU", "Sample")) %>%
+  transform(Diff = Count.x - Count.y) %>%
+  mutate(Diff_pct=round((Diff / Count.x) * 100, 2)) %>%
+  filter(Diff > 0)%>%
+  mutate(OTU = trimws(str_extract(OTU, "[^;]*$")))
+
+mmoX_diff <- merge(otutable_mmoX_e5_long, otutable_mmoX_e10_long, by = c("OTU", "Sample")) %>%
+  transform(Diff = Count.x - Count.y) %>%
+  mutate(Diff_pct = round((Diff / Count.x) * 100, 2)) %>%
+  filter(Diff > 0)%>%
+  mutate(OTU = trimws(str_extract(OTU, "[^;]*$")))
+
+
+pmoA_diff_plot<-ggplot(pmoA_diff, aes(x = Sample, y = Diff, fill = Diff_pct)) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_gradient2(low = "lightblue",
+   mid = "orange",
+   high = "darkred",
+   midpoint = 60) +
+  facet_wrap(~OTU, scales="free_y") +
+  labs(x = "", y = "Difference in reads")+
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank())
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/pmoA_diff.png",
+       pmoA_diff_plot,
+       height = 5,
+       width = 12)
+
+
+
+mmoX_diff_plot<-ggplot(mmoX_diff, aes(x = Sample, y = Diff, fill = Diff_pct)) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_gradient2(low = "lightblue",
+   mid = "orange",
+   high = "darkred",
+   midpoint = 60) +
+  facet_wrap(~OTU, scales="free_y") +
+  labs(x = "", y = "Difference in reads")+
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank())
+
+
+ggsave("/user_data/kalinka/GraftM/GraftM_packages/packages_23_04_18/bog_test_23_04_18/mmoX_diff.png",
+       mmoX_diff_plot,
+       height = 4,
+       width = 12)
+```

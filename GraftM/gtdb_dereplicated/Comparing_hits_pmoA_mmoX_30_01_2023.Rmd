@@ -1,0 +1,131 @@
+```{r}
+
+library(ggplot2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+setwd("/user_data/kalinka/GraftM/gtdb_dereplicated") 
+```
+
+##Importing the datafiles
+```{r}
+mmoX<-vroom("mmoX_filtered_tree_23_01_2023/all_mmoX_hits_with_gtdb.csv", delim = ",", col_names = c("Read","Domain","Phylum","Class","Order","Family","Genus","Species")) %>%
+  mutate(Gene="mmoX")%>%
+  mutate(Read = sub("_[^_]+$", "", Read))%>%
+  group_by(Species) %>% 
+  mutate(Hits = n()) %>% 
+  ungroup() %>% 
+  distinct()
+
+
+pmoA<-vroom("pmoA_filtered_tree_23_01_2023/all_pmoA_hits_with_gtdb.csv", delim = ",", col_names = c("Read","Domain","Phylum","Class","Order","Family","Genus","Species"))%>%
+mutate(Gene="pmoA")%>%
+  mutate(Read = sub("_[^_]+$", "", Read))%>%
+  group_by(Species) %>% 
+  mutate(Hits = n()) %>% 
+  ungroup() %>% 
+  distinct()
+
+
+not_in_mmoX <- anti_join(pmoA, mmoX, by = "Species") %>%
+mutate(Gene="mmoX")%>%
+mutate(Hits=0)
+
+not_in_pmoA <- anti_join(mmoX, pmoA, by = "Species") %>%
+mutate(Gene="pmoA")%>%
+mutate(Hits=0)
+
+mmoX_pmoA <- rbind(mmoX, pmoA, not_in_mmoX, not_in_pmoA)
+```
+
+
+
+###Filtering for different genera  ####
+
+```{r}
+Methylosinus<-mmoX_pmoA%>%
+  filter(str_detect(Species, "Methylosinus"))
+
+
+ p_methylosinus <-  ggplot(Methylosinus, aes(x = Species, y = Hits, fill = Gene)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("Species") + ylab("Hits") + 
+  ggtitle("Hits by Species and Gene")
+
+p_methylosinus
+
+```
+
+### Collecting all those worth comparing ###
+
+```{r}
+all_comparison<-mmoX_pmoA%>%
+  filter(str_detect(Species, "Methylosinus") | str_detect(Species, "Methylocystis")| str_detect(Species, "Methylomicrobium")| str_detect(Species, "Methylomonas")| str_detect(Species, "Methylovulum")| str_detect(Species, "Methylocaldum")| str_detect(Species, "Methylococcus")| str_detect(Species, "Methylomagnum")) 
+
+
+
+ p_all_comparison <-  ggplot(all_comparison, aes(x = Species, y = Hits, fill = Gene)) + 
+  geom_bar(stat = "identity", position = "dodge", width=0.7, color="black") +
+  xlab("Species") + ylab("Hits") + 
+  facet_wrap(~Class, scales = "free_y")+
+    scale_fill_manual(values = c('#999999','#98cfdd')) +
+  #theme(axis.text.x = element_text(angle = 45, size=8, vjust = 0.5))+
+    coord_flip()
+
+p_all_comparison
+
+
+ ggsave("hits_comparison_class_31_01_2023.png",
+       p_all_comparison,
+        height = 8,
+  width = 14)
+
+```
+
+
+
+And now to a comparison that should be 1:1
+```{r}
+restricted_comparison<-mmoX_pmoA%>%
+  filter(str_detect(Species, "bryophila") | str_detect(Species, "heyeri")| str_detect(Species, "hirsuta")| str_detect(Species, "sporium")| str_detect(Species, "trichosporium")| str_detect(Species, "buryatense")| str_detect(Species, "japanense")| str_detect(Species, "miyakonense")| str_detect(Species, "Methylocaldum marinum")| str_detect(Species, "capsulatus")| str_detect(Species, "ishizawai")) 
+
+
+
+ p_restricted <-  ggplot(restricted_comparison, aes(x = Species, y = Hits, fill = Gene)) + 
+  geom_bar(stat = "identity", position = "dodge", width=0.6, color="black",) +
+  xlab("Species") + ylab("Hits") + 
+  facet_wrap(~Class, scales = "free_y")+
+    scale_fill_manual(values = c('#999999','#98cfdd')) +
+  #theme(axis.text.x = element_text(angle = 45, size=8, vjust = 0.5))+
+    coord_flip()
+
+p_restricted
+
+
+ ggsave("hits_restricted_comparison_30_01_2023.png",
+       p_restricted,
+        height = 4,
+  width = 10)
+```
+
+
+mmoX only
+
+```{r}
+
+
+mmoX_only <- mmoX_pmoA %>%
+filter(str_detect(Species, "Methylocella") | str_detect(Species, "Methyloferula"))
+
+ p_mmoX <-  ggplot(mmoX_only, aes(x = Species, y = Hits, fill = Gene)) + 
+  geom_bar(stat = "identity", position = "dodge", width=0.6, color="black",) +
+  xlab("Species") + ylab("Hits") + 
+  facet_wrap(~Class, scales = "free_y")+
+    scale_fill_manual(values = c('#999999','#98cfdd')) +
+  #theme(axis.text.x = element_text(angle = 45, size=8, vjust = 0.5))+
+    coord_flip()
+
+p_mmoX
+
+```

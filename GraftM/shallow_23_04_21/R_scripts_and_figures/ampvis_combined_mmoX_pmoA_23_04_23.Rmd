@@ -1,0 +1,80 @@
+```{r}
+
+#libpath<-"/user_data/kalinka/r_packages"
+#.libPaths(c(libpath, .libPaths()))
+#remotes::install_github("MadsAlbertsen/ampvis2")
+#install.packages("cowplot")
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+##################### Generating ampvis files ####################
+
+```{r}
+otutable_mmoX <-vroom("/user_data/kalinka/GraftM/shallow_23_04_21/combined_count_table_e10_mmoX.txt", delim = "\t")
+otutable_mmoX <- otutable_mmoX %>%
+rename(OTU = ConsensusLineage)  %>%
+mutate(OTU = if_else(OTU == "Root", "Root_mmoX", OTU))
+
+otutable_pmoA <-vroom("/user_data/kalinka/GraftM/shallow_23_04_21/combined_count_table_e10_pmoA.txt", delim = "\t")
+otutable_pmoA <- otutable_pmoA %>%
+rename(OTU = ConsensusLineage)%>%
+mutate(OTU = if_else(OTU == "Root", "Root_pmoA", OTU))%>%
+mutate(OTU = if_else(OTU == "Root; pmoA_amoA_pxmA", "Root; pmoA_amoA_pxmA_umbrella", OTU))
+
+combined <- bind_rows(otutable_pmoA, otutable_mmoX)
+#Setting NA to 0
+combined<- combined %>% replace(is.na(.), 0)
+
+
+```
+
+And adding a normalising factor in the form of number of bases 
+```{r}
+
+metadata <- readRDS("/projects/microflora_danica/Data_freezes/2022_10_10/2022-12-05_mfd-metadata.rds")
+metadata <- metadata %>%
+  rename(SeqId = seq_id) %>%
+    relocate(SeqId) %>%
+  filter(after_total_reads > 4000000) %>% #Filtering at 4 million paired end reads
+  drop_na(mfd_sampletype)
+
+normalising_factor<-metadata%>%
+filter(after_total_bases > 1)%>%
+mutate(normalising_factor=after_total_bases/(2*4500000))%>% #Genome size is 4.5 million
+  select(SeqId, normalising_factor) %>%
+  pivot_wider(names_from = SeqId, values_from = normalising_factor) %>%
+  add_column(OTU="normalising_factor") %>%
+  relocate(OTU)
+
+combined_normalise <- bind_rows(combined, normalising_factor)
+cols_to_remove <- names(combined_normalise)[colSums(is.na(combined_normalise)) > 0]
+
+combined_normalise <- combined_normalise %>% select(-cols_to_remove)
+```
+
+
+Loading taxonomy data
+```{r}
+
+taxonomy <- data.frame(matrix(ncol = 8, nrow = 45))
+x <- c("OTU","Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species")
+colnames(taxonomy) <- x
+taxonomy$OTU<-combined_normalise$OTU
+taxonomy <- taxonomy %>%
+separate(OTU, into = c("Kingdom", "Phylum", "Class","Order", "Family", "Genus", "Species"), sep = '; ', remove=FALSE)
+taxonomy$Species<-taxonomy$OTU
+```
+
+
+And now loading the ampvis objects;
+```{r}
+amp_normalise<- amp_load(otutable = combined_normalise, metadata = metadata, taxonomy = taxonomy)
+
+saveRDS(amp_normalise, file = "/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+
+```

@@ -1,0 +1,256 @@
+```{r}
+
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+
+
+```{r}
+MFD01188 <-vroom("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD01188.nds", delim = ",", col_names = c("Seq","Tax"))
+
+
+MFD01188_summary <- MFD01188 %>%
+  mutate(read_type = case_when(
+    startsWith(Seq, "raw") ~ "Raw",
+    startsWith(Seq, "corrected") ~ "Corrected",
+    startsWith(Seq, "contig_") & !grepl("MFD|Singleton", Seq) ~ "Contig",
+    TRUE ~ "Original package"
+  )) %>%
+  group_by(Tax, read_type) %>%
+  summarise(n_reads = n()) %>%
+  ungroup()%>%
+  filter(!is.na(Tax))
+
+```
+
+
+```{r}
+
+MFD01188_summary1 <- MFD01188_summary %>%
+  group_by(Tax) %>%
+  mutate(
+    N_reads = ifelse(read_type == "Original package", n_reads,
+                     ifelse(read_type == "Contig" | read_type == "Original package", 
+                            sum(n_reads[read_type %in% c("Contig", "Original package")]),
+                            ifelse(read_type == "Raw" | read_type == "Contig" | read_type == "Original package", 
+                                   sum(n_reads[read_type %in% c("Raw", "Contig", "Original package")]),
+                                   ifelse(read_type == "Corrected", sum(n_reads), NA)))),
+    Read_Type = ifelse(read_type == "Original package", "Reads in Original package",
+                       ifelse(read_type == "Contig" | read_type == "Original package", "With Contigs",
+                              ifelse(read_type == "Raw" | read_type == "Contig" | read_type == "Original package", "With Raw Reads",
+                                     ifelse(read_type == "Corrected", "With Corrected Reads", NA))))
+  ) %>%
+  ungroup()
+
+# Create a new column to order the Read_Type
+MFD01188_summary1$Read_Type_Order <- factor(MFD01188_summary1$Read_Type, levels = c("Reads in Original package", "With Contigs", "With Raw Reads", "With Corrected Reads"))
+
+HYP<-MFD01188_summary1 %>%
+filter(Tax=="Hyphomicrobiaceae_pmoA")
+
+# Create the plot
+HYP_plot<-ggplot(HYP, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+HYP_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD01188_HYP.png",
+       HYP_plot,
+        height = 5,
+  width = 5)
+```
+
+```{r}
+
+pmoA2<-MFD01188_summary1 %>%
+filter(Tax=="Methylocystaceae_pmoA2")
+
+# Create the plot
+pmoA2_plot<-ggplot(pmoA2, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+pmoA2_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD01188_pmoA2.png",
+       pmoA2_plot,
+        height = 5,
+  width = 5)
+
+  
+pmoA1<-MFD01188_summary1 %>%
+filter(Tax=="Methylocystaceae_pmoA1")
+
+# Create the plot
+pmoA1_plot<-ggplot(pmoA1, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+pmoA1_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD01188_pmoA1.png",
+       pmoA1_plot,
+        height = 5,
+  width = 5)
+```
+
+
+
+
+
+1_1_12
+
+################### MFD02159 ########################
+
+
+```{r}
+MFD02159 <-vroom("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD02159.nds", delim = ",", col_names = c("Seq","Tax"))
+
+
+MFD02159_summary <- MFD02159 %>%
+  mutate(read_type = case_when(
+    startsWith(Seq, "raw") ~ "Raw",
+    startsWith(Seq, "corrected") ~ "Corrected",
+    startsWith(Seq, "contig_") & !grepl("MFD|Singleton", Seq) ~ "Contig",
+    TRUE ~ "Original package"
+  )) %>%
+  group_by(Tax, read_type) %>%
+  summarise(n_reads = n()) %>%
+  ungroup()%>%
+  filter(!is.na(Tax))
+
+```
+
+
+```{r}
+
+MFD02159_summary1 <- MFD02159_summary %>%
+  group_by(Tax) %>%
+  mutate(
+    N_reads = ifelse(read_type == "Original package", n_reads,
+                     ifelse(read_type == "Contig" | read_type == "Original package", 
+                            sum(n_reads[read_type %in% c("Contig", "Original package")]),
+                            ifelse(read_type == "Raw" | read_type == "Contig" | read_type == "Original package", 
+                                   sum(n_reads[read_type %in% c("Raw", "Contig", "Original package")]),
+                                   ifelse(read_type == "Corrected", sum(n_reads), NA)))),
+    Read_Type = ifelse(read_type == "Original package", "Reads in Original package",
+                       ifelse(read_type == "Contig" | read_type == "Original package", "With Contigs",
+                              ifelse(read_type == "Raw" | read_type == "Contig" | read_type == "Original package", "With Raw Reads",
+                                     ifelse(read_type == "Corrected", "With Corrected Reads", NA))))
+  ) %>%
+  ungroup()
+
+# Create a new column to order the Read_Type
+MFD02159_summary1$Read_Type_Order <- factor(MFD02159_summary1$Read_Type, levels = c("Reads in Original package", "With Contigs", "With Raw Reads", "With Corrected Reads"))
+
+TUSC<-MFD02159_summary1 %>%
+filter(Tax=="TUSC")
+
+# Create the plot
+TUSC_plot<-ggplot(TUSC, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+TUSC_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD02159_TUSC.png",
+       TUSC_plot,
+        height = 5,
+  width = 5)
+```
+
+```{r}
+
+USCa<-MFD02159_summary1 %>%
+filter(Tax=="USCa")
+
+# Create the plot
+USCa_plot<-ggplot(USCa, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+USCa_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD02159_USCa.png",
+       USCa_plot,
+        height = 5,
+  width = 5)
+
+  
+pmoA1<-MFD02159_summary1 %>%
+filter(Tax=="Methylocystaceae_pmoA1")
+
+# Create the plot
+pmoA1_plot<-ggplot(pmoA1, aes(x = Read_Type_Order, y = N_reads, fill=Read_Type)) +
+    geom_bar(stat = "identity", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("#7fd670", "#55adad" ,"#7474C2", "#767776" ))+
+  labs(x = "", y = "") +
+  geom_text(aes(label = n_reads), vjust = -0.5, size=5) +
+    theme(axis.text.x = element_blank(), axis.ticks.x=element_blank(), axis.text.y = element_text(size = 14))+
+  theme(panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+pmoA1_plot
+
+ ggsave("/user_data/kalinka/selected_3_samples_23_03_18/graftM/combined_trees_contigs_raw/R_scripts_tree_processing/pmoA/MFD02159_pmoA1.png",
+       pmoA1_plot,
+        height = 5,
+  width = 5)
+```

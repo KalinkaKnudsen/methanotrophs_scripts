@@ -1,0 +1,833 @@
+```{r}
+
+library(ggplot2)
+library(ampvis2)
+library(cowplot)
+library(vroom)
+library(tidyverse)
+
+```
+
+##Importing ampvis object
+```{r}
+amp<-readRDS("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+```
+
+##### Subsetting to exclude "nomalising_factor" ####
+
+```{r}
+
+tax_vector <- c("normalising_factor")
+amp_f <- amp_subset_taxa(amp, tax_vector = tax_vector, remove = TRUE, normalise = TRUE)
+amp_f$tax <- amp_f$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$"))
+```
+
+
+### Subsetting to remove the "unwanted" OTUs
+```{r}
+
+tax_vector_OTUs <- c("normalising_factor","Root; Homologues_mmoX","Root; likely_mmoX","Root_mmoX","Root_pmoA","amoA", "Nitrospira", "Homologous_pmoA","Nitrosococcus", "Actinobacteria", "Probably_hydrocarbon_monooxygenases", "Cycloclasticus", "Root; pmoA_amoA_pxmA; pxmA", "Root; pmoA_amoA_pxmA")
+
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = TRUE)
+#x<-f$tax
+
+f$tax <- f$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$")) ###Just for easy plotting at "genus = last word" level
+
+tax <- f$tax
+```
+
+
+
+
+And actually to selecting the tax that I want to look at in particular
+```{r}
+tax_vector_interesting<-c("HYP_mmox","USCg","Hyphomicrobiaceae_pmoA","TUSC","Root; pmoA_amoA_pxmA; pmoA; Deltaproteobacteria", "Beijerinckiaceae_mmoX")
+i<-amp_subset_taxa(f, tax_vector = tax_vector_interesting, remove=FALSE, normalise=FALSE)
+
+```
+
+
+Diversity
+```{r}
+
+i_div <- amp_alphadiv(i,
+  measure = c("observed","shannon"))
+
+
+i_div_subset<-i_div%>%
+filter(ObservedOTUs>3) 
+
+#Using this to make a new ampvis element
+
+diversity_ampvis <- amp_load(otutable = f$abund, metadata = i_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+heatmap_diverse_samples <- amp_heatmap(diversity_ampvis,
+  facet_by = "mfd_areatype",
+ group_by = "mfd_hab1",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+heatmap_diverse_samples
+
+
+### And then some filtering again ####
+
+i_div_2 <- amp_alphadiv(diversity_ampvis,
+  measure = c("observed","shannon"))
+
+i_div_subset_2<-i_div_2%>%
+filter(Reads>10) 
+diversity_ampvis_2 <- amp_load(otutable = f$abund, metadata = i_div_subset_2, taxonomy = f$tax)
+
+string<-diversity_ampvis_2$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(diversity_ampvis_2,
+  facet_by = "mfd_areatype",
+ group_by = "mfd_hab1",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/metadata/diverse.png",
+       heatmap_diverse_samples,
+        height = 8,
+  width = 30)
+
+
+```
+
+USGg only
+```{r}
+tax_vector_USCg<-c("USCg")
+uscg<-amp_subset_taxa(f, tax_vector = tax_vector_USCg, remove=FALSE, normalise=FALSE)
+
+uscg_div <- amp_alphadiv(uscg,
+  measure = c("observed","shannon"))
+
+
+uscg_div_subset<-uscg_div%>%
+filter(Reads>1) 
+
+#Using this to make a new ampvis element
+
+uscg_ampvis <- amp_load(otutable = f$abund, metadata = uscg_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-uscg_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(uscg_ampvis,
+  facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/USCg.png",
+       heatmap_diverse_samples,
+        height = 4,
+  width = 10)
+
+```
+
+
+TUSC only 
+```{r}
+tax_vector_TUSC<-c("TUSC")
+tusc<-amp_subset_taxa(f, tax_vector = tax_vector_TUSC, remove=FALSE, normalise=FALSE)
+
+tusc_div <- amp_alphadiv(tusc,
+  measure = c("observed","shannon"))
+
+
+tusc_div_subset<-tusc_div%>%
+filter(Reads>1.2) 
+
+#Using this to make a new ampvis element
+
+tusc_ampvis <- amp_load(otutable = f$abund, metadata = tusc_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-tusc_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(tusc_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="TUSC")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/TUSC.png",
+       heatmap_diverse_samples,
+        height = 6,
+  width = 10)
+```
+
+
+HYP_mmox and Hyphomicrobiaceae_pmoA
+```{r}
+tax_vector_hyp<-c("Hyphomicrobiaceae_pmoA", "HYP_mmox")
+hyp<-amp_subset_taxa(f, tax_vector = tax_vector_hyp, remove=FALSE, normalise=FALSE)
+
+hyp_div <- amp_alphadiv(hyp,
+  measure = c("observed","shannon"))
+
+
+hyp_div_subset<-hyp_div%>%
+filter(Reads>4.7) 
+
+#Using this to make a new ampvis element
+
+hyp_ampvis <- amp_load(otutable = f$abund, metadata = hyp_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-hyp_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(hyp_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="HYP_mmox and Hyphomicrobiaceae_pmoA")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/HYP.png",
+       heatmap_diverse_samples,
+        height = 7,
+  width = 10)
+```
+
+
+
+Methylovulumn_mmoX
+```{r}
+tax_vector_Methylovulumn_mmoX<-c("Methylovulumn_mmoX")
+Methylovulumn_mmoX<-amp_subset_taxa(f, tax_vector = tax_vector_Methylovulumn_mmoX, remove=FALSE, normalise=FALSE)
+
+Methylovulumn_mmoX_div <- amp_alphadiv(Methylovulumn_mmoX,
+  measure = c("observed","shannon"))
+
+
+Methylovulumn_mmoX_div_subset<-Methylovulumn_mmoX_div%>%
+filter(Reads>0.7) 
+
+#Using this to make a new ampvis element
+
+Methylovulumn_mmoX_ampvis <- amp_load(otutable = f$abund, metadata = Methylovulumn_mmoX_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-Methylovulumn_mmoX_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(Methylovulumn_mmoX_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Methylovulumn_mmoX")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/Methylovulumn_mmoX.png",
+       heatmap_diverse_samples,
+        height = 6,
+  width = 11)
+```
+
+
+Methylocaldum_methylococcus_mmoX
+```{r}
+tax_vector_Methylocaldum_methylococcus_mmoX<-c("Methylocaldum_methylococcus_mmoX")
+Methylocaldum_methylococcus_mmoX<-amp_subset_taxa(f, tax_vector = tax_vector_Methylocaldum_methylococcus_mmoX, remove=FALSE, normalise=FALSE)
+
+Methylocaldum_methylococcus_mmoX_div <- amp_alphadiv(Methylocaldum_methylococcus_mmoX,
+  measure = c("observed","shannon"))
+
+
+Methylocaldum_methylococcus_mmoX_div_subset<-Methylocaldum_methylococcus_mmoX_div%>%
+filter(Reads>1) 
+
+#Using this to make a new ampvis element
+
+Methylocaldum_methylococcus_mmoX_ampvis <- amp_load(otutable = f$abund, metadata = Methylocaldum_methylococcus_mmoX_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-Methylocaldum_methylococcus_mmoX_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(Methylocaldum_methylococcus_mmoX_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Methylocaldum_methylococcus_mmoX")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/Methylocaldum_methylococcus_mmoX.png",
+       heatmap_diverse_samples,
+        height = 6,
+  width = 10)
+```
+
+
+
+Root; pmoA_amoA_pxmA; pmoA; Deltaproteobacteria
+```{r}
+tax_vector_DAMO<-c("Deltaproteobacteria")
+DAMO<-amp_subset_taxa(f, tax_vector = tax_vector_DAMO, remove=FALSE, normalise=FALSE)
+
+DAMO_div <- amp_alphadiv(DAMO,
+  measure = c("observed","shannon"))
+
+
+DAMO_div_subset<-DAMO_div%>%
+filter(Reads>2) 
+
+#Using this to make a new ampvis element
+
+DAMO_ampvis <- amp_load(otutable = f$abund, metadata = DAMO_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-DAMO_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(DAMO_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="DAMO")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/DAMO.png",
+       heatmap_diverse_samples,
+        height = 5,
+  width = 8)
+```
+
+
+
+
+
+Root; pmoA_amoA_pxmA; pmoA; Alphaproteobacteria; Beijerinckiaceae_pmoA; USCa
+```{r}
+tax_vector_USCa<-c("Root; pmoA_amoA_pxmA; pmoA; Alphaproteobacteria; Beijerinckiaceae_pmoA; USCa")
+USCa<-amp_subset_taxa(f, tax_vector = tax_vector_USCa, remove=FALSE, normalise=FALSE)
+
+USCa_div <- amp_alphadiv(USCa,
+  measure = c("observed","shannon"))
+
+
+USCa_div_subset<-USCa_div%>%
+filter(Reads>5) 
+
+#Using this to make a new ampvis element
+
+USCa_ampvis <- amp_load(otutable = f$abund, metadata = USCa_div_subset, taxonomy = f$tax)
+#That worked! Now to a little heatmap!
+
+string<-USCa_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(USCa_ampvis,
+  #facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="USCa")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/USCa.png",
+       heatmap_diverse_samples,
+        height = 6,
+  width = 14)
+```
+
+
+I will try to combine the different subsets now 
+```{r}
+d<-bind_rows(DAMO_div_subset, hyp_div_subset, Methylocaldum_methylococcus_mmoX_div_subset, Methylovulumn_mmoX_div_subset, tusc_div_subset, uscg_div_subset) %>%
+select(!c(Reads, ObservedOTUs, Shannon))%>%
+  filter(!duplicated(.))
+
+d_amp <- amp_load(otutable = f$abund, metadata = d, taxonomy = f$tax)
+
+d_div <- amp_alphadiv(d_amp,
+  measure = c("observed","shannon"))
+
+d_div_subset<-d_div%>%
+filter(ObservedOTUs>7) 
+
+d_amp_subset <- amp_load(otutable = f$abund, metadata = d_div_subset, taxonomy = f$tax)
+
+
+string<-d_amp_subset$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(d_amp_subset,
+  facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+heatmap_diverse_samples
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/combined.png",
+       heatmap_diverse_samples,
+        height = 7,
+  width = 12)
+```
+
+
+
+And now to just selecting some very diverse or high methanotropich samples;
+
+```{r}
+
+f_div <- amp_alphadiv(f,
+  measure = c("observed","shannon"))
+
+f_div_subset<-f_div%>%
+filter(ObservedOTUs>12 & Reads>30)
+
+f_div_amp_subset <- amp_load(otutable = f$abund, metadata = f_div_subset, taxonomy = f$tax)
+
+
+string<-f_div_amp_subset$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(f_div_amp_subset,
+  facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")
+
+heatmap_diverse_samples
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/high_diversity.png",
+       heatmap_diverse_samples,
+        height = 7,
+  width = 10)
+
+```
+
+
+
+Looking at pmoA samples;
+```{r}
+f <- amp_subset_taxa(amp, tax_vector = tax_vector_OTUs, remove = TRUE, normalise = TRUE)
+f$tax <- f$tax %>%
+  mutate(Genus = str_extract(OTU, "[^;]*$"))
+
+tax_vector_verru<-c("Root; pmoA_amoA_pxmA; Verrucomicrobia_pmoA")
+verru<-amp_subset_taxa(f, tax_vector = tax_vector_verru, remove=FALSE, normalise=FALSE)
+
+verru_div <- amp_alphadiv(verru,
+  measure = c("observed","shannon"))
+
+verru_div_subset<-verru_div%>%
+filter(Reads>0) 
+
+#Using this to make a new ampvis element
+
+verru_ampvis <- amp_load(otutable = f$abund, metadata = verru_div_subset, taxonomy = f$tax, normalise=FALSE)
+
+#That worked! Now to a little heatmap!
+
+string<-verru_ampvis$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_diverse_samples <- amp_heatmap(verru_ampvis,
+  facet_by = "mfd_areatype",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Samples filtered for pmoA Verrucomicrobia")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_diverse_samples
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/verru.png",
+       heatmap_diverse_samples,
+        height = 7,
+  width = 14)
+```
+
+
+Mapping selected samples 
+```{r}
+library(mapDK) 
+library(gridExtra) #For plotting
+
+
+
+selection<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD05747","MFD02360","MFD10097","MFD09567","MFD02134","MFD04570","MFD09848","MFD02809","MFD04716","MFD00905",
+"MFD09730", "MFD06092", "MFD10071","MFD10007","MFD01299","MFD04428"))%>%
+mutate(label=paste0(mfd_hab1, "-", mfd_hab2,"-", mfd_hab3))%>%
+mutate(label = if_else(label == "NA-NA-NA", "Natural soil - lacks clasification", label))
+
+s2<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD01231","MFD01567","MFD02134","MFD10097"))%>%
+mutate(label=paste0(mfd_hab1, "-", mfd_hab2,"-", mfd_hab3))
+
+```
+
+```{r}
+m <- NULL
+m <- mapDK(detail = 'region') #Setting the boarders to regions, you can change this if you want
+
+MFD_map<- m+ 
+geom_point(data = selection, aes(x=longitude, y=latitude, shape = mfd_sampletype,
+colour = label,group = fieldsample_barcode),
+  size=5, alpha = 1 ) +
+scale_color_manual(values=c("#69d44f",
+"#eed70d",
+"#ff0ab6",
+"#660b24",
+"#260a8a",
+"#824ca7",
+"#d48728",
+"#201dfc",
+"#ce1515", "#15a3ce","#7b15ce","#2d6911","#694311","#1e9101" ))+  
+labs(color = "Habitattype",shape = "Sampletype")
+
+MFD_map
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/selection_map_23_03_07.png",
+       MFD_map,
+        height = 7,
+  width = 10)
+```
+
+
+
+#### Displaying selected samples ####
+```{r}
+select_3<-amp_subset_samples(f, fieldsample_barcode %in% c("MFD02159","MFD01188","MFD00991","MFD05747","MFD02360","MFD10097","MFD09567","MFD02134","MFD04570","MFD09848","MFD02809","MFD04716","MFD00905",
+"MFD09730", "MFD06092", "MFD10071","MFD10007","MFD01299","MFD04428"), normalise=FALSE)
+
+string<-select_3$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_select_3 <- amp_heatmap(select_3,
+  #facet_by = "mfd_hab2",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 32,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "sqrt",
+ plot_values = TRUE,
+ plot_values_size = 2.5,
+ round = 1,
+order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=8, vjust = 1),
+ axis.text.y = element_text(size=8),
+  legend.position="right")+
+  labs(title="Selected 19 samples - including the 3 original selections")+
+  theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+heatmap_select_3
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/select_19.png",
+       heatmap_select_3,
+        height = 9,
+  width = 10)
+
+```
+
+
+
+
+
+
+#### Displaying selected samples 17-02-2023 ####
+```{r}
+new_selection<-amp_subset_samples(f, fieldsample_barcode %in% c("MFD02159", "MFD01188","MFD00991"), normalise=FALSE)
+
+met<-f$metadata
+
+string<-new_selection$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+heatmap_new_selection <- amp_heatmap(new_selection,
+  facet_by = "mfd_hab2",
+ group_by = "fieldsample_barcode",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "#6060a0"),
+ plot_colorscale = "sqrt",
+ plot_values = FALSE,
+ plot_values_size = 2.5,
+ round = 1,
+order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ normalise = FALSE) +
+theme(axis.text.x = element_text(angle = 45, size=11, vjust = 1),
+ axis.text.y = element_text(size=10),
+  legend.position="right")
+
+heatmap_new_selection
+
+
+ggsave("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/new_select_3_date_12_04.png",
+       heatmap_new_selection,
+        height = 9,
+  width = 8.7)
+
+```
+
+
+
+#### DNA concentration of selected samples ###
+```{r}
+selection<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD05747","MFD02360","MFD10097","MFD09567","MFD02134","MFD04570","MFD09848","MFD02809","MFD04716","MFD00905",
+"MFD09730", "MFD06092", "MFD10071","MFD10007","MFD01299","MFD04428"))%>%
+select(fieldsample_barcode, extraction_concentration, library_concentration)
+
+
+selection_mantas<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD01138","MFD01223","MFD01248","MFD02979","MFD03346","MFD03399",
+"MFD03638","MFD03726","MFD03899","MFD04408","MFD04967","MFD05580","MFD10064","MFD04434"))%>%
+select(fieldsample_barcode, SeqId, sampling_comment, mfd_sampletype, mfd_hab1, mfd_hab2, mfd_hab3, after_total_reads, extraction_concentration, library_concentration)
+
+selection_kalinka<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD02159", "MFD01188", "MFD00991"))%>%
+select(fieldsample_barcode, SeqId, sampling_comment, mfd_sampletype, mfd_hab1, mfd_hab2, mfd_hab3, after_total_reads, extraction_concentration, library_concentration)
+
+
+
+
+## Merging onto Thomas df ##
+
+thomas<-vroom("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/2023-03-07_MFD-mathanotroph-samples.csv", delim=",")
+
+
+merged_df <- merge(thomas, selection, by.x = "Barcode", by.y = "fieldsample_barcode")
+write.csv(merged_df, "/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/2023-03-08_MFD-mathanotroph-samples.csv", row.names=FALSE)
+
+```
+
+
+
+#### DNA concentration of selected samples 14/03-2023 ###
+```{r}
+selection<-amp$metadata%>%
+filter(fieldsample_barcode %in% c("MFD03323", "MFD06435", "MFD00125", "MFD01823", "MFD09628", "MFD09222","MFD06742", "MFD09206", "MFD00941", "MFD02242", "MFD06311"))%>%
+select(fieldsample_barcode, SeqId, sampling_comment, mfd_sampletype, mfd_hab1, mfd_hab2, mfd_hab3, after_total_reads, extraction_concentration, library_concentration, longitude, latitude)%>%
+ mutate(Target = case_when(
+    fieldsample_barcode %in% c("MFD03323", "MFD06435") ~ "HYP",
+    fieldsample_barcode %in% c("MFD00125", "MFD01823", "MFD09628") ~ "USCa",
+    fieldsample_barcode %in% c("MFD09222") ~ "Deltaproteobacteria",
+    fieldsample_barcode %in% c("MFD06742", "MFD09206") ~ "USCg",
+    fieldsample_barcode %in% c("MFD00941", "MFD02242", "MFD06311") ~ "TUSC")) %>%
+    mutate(Priority=4)%>%
+    mutate(potential_DNA_60ul_250mg=extraction_concentration*400) %>%
+  unite(Habitat, c(mfd_hab1, mfd_hab2), sep = " - ")
+
+selection_2<-selection %>%
+filter(!fieldsample_barcode %in% c("MFD00941", "MFD06311", "MFD01823", "MFD09628"))%>%
+  mutate(Habitat = ifelse(fieldsample_barcode == "MFD06742", "Lacks Habitat - GPS location is Møns Klint", Habitat))%>%
+  mutate(Habitat = ifelse(fieldsample_barcode == "MFD06435", "Lacks Habitat - GPS location is Dune near Klitmøller", Habitat))%>%
+mutate(rack1 = NA,
+         rack1_row = NA,
+         rack1_col = NA,
+         rack2 = NA,
+         rack2_row = NA,
+         rack2_col = NA) %>%
+  select(fieldsample_barcode, Priority, Habitat, Target, rack1, rack1_row, rack1_col, rack2, rack2_row, rack2_col, extraction_concentration, library_concentration, potential_DNA_60ul_250mg)%>%
+  rename(Barcode=fieldsample_barcode)
+
+
+## Merging onto Thomas df ##
+
+thomas<-vroom("/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/2023-03-08_MFD-mathanotroph-samples_1.csv", delim=",")
+combined<-bind_rows(thomas, selection_2)
+
+write.csv(combined, "/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/2023-03-15_MFD-mathanotroph-all-samples.csv", row.names=FALSE)
+write.csv(selection_2, "/user_data/kalinka/GraftM/shallow_21_12_2022/R_scripts_and_figures/2023-03-15_MFD-mathanotroph-new-samples.csv", row.names=FALSE)
+
+```
