@@ -16,7 +16,7 @@ library(tidyverse)
 ```{r}
 #amp<-readRDS("/user_data/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
 #Running locally with;
-amp<-readRDS("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/kalinka/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
+amp<-readRDS("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/methanotrophs_scripts/GraftM/shallow_23_04_21/R_scripts_and_figures/amp_normalise_mmoX_pmoA.rds")
 amp$metadata <- amp$metadata %>%
   mutate(mfd_hab2 = gsub("§3 mire", "Mire", mfd_hab2)) %>%
   mutate(mfd_hab2 = gsub("Forrest \\(non-habitattype\\)", "Forrest", mfd_hab2))%>%
@@ -357,20 +357,28 @@ p<-plot_grid(pca_nat_bmf, pca_nat_scrub_heath_cave, pca_nat_coast_dune, pca_nat_
 #I will try to combine the four dataframes instead...
 #Combining heath and scrub and scherrelous scrub; (and rocky habitats and caves?)
 nat_scrub_heath_cave$metadata<-nat_scrub_heath_cave$metadata%>%
-mutate(hab_group="Scrubs, Heaths, and\nRocky habitats")
+mutate(hab_group="Scrubs, Heaths, and\nRocky habitats")%>%
+group_by(mfd_hab2)%>%
+mutate(mfd_hab2 = paste0(mfd_hab2, ' (', n(), ')'))  
 
 nat_coast_dune$metadata<- nat_coast_dune$metadata %>%
-mutate(hab_group="Coastal and Dunes")
+mutate(hab_group="Coastal and Dunes")%>%
+group_by(mfd_hab2)%>%
+mutate(mfd_hab2 = paste0(mfd_hab2, ' (', n(), ')'))  
 
 nat_forrests_grass$metadata<- nat_forrests_grass$metadata %>%
-mutate(hab_group="Forrests and\nGrasslands")
+mutate(hab_group="Forrests and\nGrasslands")%>%
+group_by(mfd_hab2)%>%
+mutate(mfd_hab2 = paste0(mfd_hab2, ' (', n(), ')'))  
 
 nat_bmf$metadata<- nat_bmf$metadata %>%
-mutate(hab_group="Bogs, Mires, and Fens")
+mutate(hab_group="Bogs, Mires, and Fens")%>%
+group_by(mfd_hab2)%>%
+mutate(mfd_hab2 = paste0(mfd_hab2, ' (', n(), ')'))  
 
 nat<-amp_merge_ampvis2(nat_scrub_heath_cave, nat_coast_dune, nat_forrests_grass, nat_bmf, by_refseq = FALSE)
 #nat$metadata$hab_group
-
+#table(nat$metadata$mfd_hab2)
 
 string<-nat$tax %>%
   select(Genus | Species)
@@ -385,20 +393,20 @@ hm_nat <- amp_heatmap(nat,
  tax_show = 27,
  color_vector = c("white", "darkred"),
  plot_colorscale = "log10",
- plot_values = TRUE,
+ plot_values = F,
  plot_values_size = 3.5,
  round = 1,
  order_y_by = rev(genus_string),
  min_abundance=0.04,
  max_abundance = 5,
  normalise = FALSE) +
-  theme(axis.text.x = element_text(angle = 45, size = 11, vjust = 1),
-        axis.text.y = element_text(size = 10),
+  theme(axis.text.x = element_text(angle = 45, size = 12, vjust = 1),
+        axis.text.y = element_text(size = 12),
         legend.position = "right",
-        legend.text = element_text(size = 9),
+        legend.text = element_text(size = 11),
         legend.title = element_text(size=12),
          strip.text = element_text(size = 12, face = "bold"))
-
+hm_nat
 
  ggsave("C:/Users/kalin/OneDrive - Aalborg Universitet/9. MSc/Thesis/Habitat_diversity/hm_nat_2x2_log10.png",
        hm_nat,
@@ -433,6 +441,66 @@ hm_nat <- amp_heatmap(nat,
   width = 14)
 
 ```
+
+
+
+
+
+
+
+
+
+```{r}
+agri<- amp_subset_samples(f_no_amoA,
+  mfd_areatype %in% c("Agriculture"),
+  !is.na(mfd_hab2)) 
+
+string<-agri$tax %>%
+  select(Genus | Species)
+genus_string<-arrange(string, Species, decreasing=FALSE)
+genus_string<-unlist(genus_string[,"Genus"])
+
+agri$metadata<-agri$metadata%>%
+group_by(mfd_hab2)%>%
+mutate(mfd_hab2 = paste0(mfd_hab2, ' (', n(), ')'))
+
+summary(agri)
+
+
+#### The trick will be to make the boxes within the heatmap the same. The number of tax fits, so the rest is just some cutting in powerpoint!
+hm_agri<- amp_heatmap(agri,
+ facet_by = "mfd_areatype",
+ #group_by = "mfd_hab2",
+ tax_aggregate = "Genus",
+ tax_show = 27,
+ color_vector = c("white", "darkred"),
+ plot_colorscale = "log10",
+ plot_values = TRUE,
+ plot_values_size = 3.5,
+ round = 1,
+ order_y_by = rev(genus_string),
+ min_abundance=0.04,
+ max_abundance = 5,
+ normalise = FALSE) +
+  theme(axis.text.x = element_text(angle = 45, size = 11, vjust = 1),
+        axis.text.y = element_text(size = 10),
+        legend.position = "right",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size=12),
+         strip.text = element_text(size = 12, face = "bold"))
+
+hm_agri
+
+```
+
+
+
+
+
+
+
+
+
 
 
 ###### Doing sediment samples #####
