@@ -1,0 +1,1 @@
+{"graftm_package_version": 3, "align_hmm": "graftmrjk1inq8_align.hmm", "search_hmms": ["graftmx_7d106i_search.hmm"], "refpkg": "pmoA_GraftM_23_04_21.refpkg", "trusted_cutoff": false, "range": 406.3235294117647, "unaligned_sequence_database": "pmoA_combined_M_M_DHMO_pxm_derep.fa", "diamond_database": "pmoA_combined_M_M_DHMO_pxm_derep.dmnd"}

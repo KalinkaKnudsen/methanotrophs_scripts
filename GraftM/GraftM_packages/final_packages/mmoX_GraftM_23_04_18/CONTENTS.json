@@ -1,0 +1,1 @@
+{"graftm_package_version": 3, "align_hmm": "graftmt_uvjwbg_align.hmm", "search_hmms": ["graftm9qvjimtp_search.hmm"], "refpkg": "mmoX_GraftM_23_04_18.refpkg", "trusted_cutoff": false, "range": 709.0434782608696, "unaligned_sequence_database": "mmoX_combined_cluster1.fa", "diamond_database": "mmoX_combined_cluster1.dmnd"}

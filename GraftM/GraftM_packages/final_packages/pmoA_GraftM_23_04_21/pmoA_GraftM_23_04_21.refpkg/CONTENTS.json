@@ -1,0 +1,29 @@
+{
+    "metadata": {
+        "create_date": "2023-04-21 14:27:34",
+        "format_version": "1.1",
+        "locus": "/tmp/tmpgpxjmd34/pmoA_combined_M_M_DHMO_pxm_derep"
+    },
+    "files": {
+        "phylo_model": "phylo_modelf3411p5j.json",
+        "aln_fasta": "pmoA_combined_M_M_DHMO_pxm_derep_deduplicated_aligned.fasta",
+        "seq_info": "pmoA_combined_M_M_DHMO_pxm_derep_seqinfo.csv",
+        "taxonomy": "pmoA_combined_M_M_DHMO_pxm_derep_taxonomy.csv",
+        "tree": "graftmjqqs548q.tree",
+        "tree_stats": "graftmi949xml0.tree_log"
+    },
+    "md5": {
+        "phylo_model": "e180a7aee6b58a2daa3d0c3f2fb4d0c3",
+        "aln_fasta": "bd6e43794bd2e4f804696afc985ecbdd",
+        "seq_info": "310dc745f3a7839e9bb830bc12df5386",
+        "taxonomy": "7dc1e1b74d38fc2e763d1c54fc3fed84",
+        "tree": "8be704864226c219f1d95c73087e182d",
+        "tree_stats": "ed2fa5e9a4508b3022cfcb8324d5920b"
+    },
+    "log": [
+        "Stripped refpkg (removed 0 files)",
+        "Loaded initial files into empty refpkg"
+    ],
+    "rollback": null,
+    "rollforward": null
+}

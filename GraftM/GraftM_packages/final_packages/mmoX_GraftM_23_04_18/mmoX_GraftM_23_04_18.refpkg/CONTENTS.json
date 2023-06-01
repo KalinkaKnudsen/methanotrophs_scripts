@@ -1,0 +1,29 @@
+{
+    "metadata": {
+        "create_date": "2023-04-18 15:59:45",
+        "format_version": "1.1",
+        "locus": "/tmp/tmpn7sn3xax/mmoX_combined_cluster1"
+    },
+    "files": {
+        "phylo_model": "phylo_modeldk52tzxg.json",
+        "aln_fasta": "mmoX_combined_cluster1_deduplicated_aligned.fasta",
+        "seq_info": "mmoX_combined_cluster1_seqinfo.csv",
+        "taxonomy": "mmoX_combined_cluster1_taxonomy.csv",
+        "tree": "graftmy812j8l0.tree",
+        "tree_stats": "graftmf94ik268.tree_log"
+    },
+    "md5": {
+        "phylo_model": "146385addb456024414ab9982238eff2",
+        "aln_fasta": "8cd586e92b8d93eb996c365afeec5bd4",
+        "seq_info": "509433f4eb005ff76580ef2bb13c9812",
+        "taxonomy": "58e8c33528b2ae2b2ac9bb393eb515df",
+        "tree": "bd3eebff3417f9f67d417468b01cc9bd",
+        "tree_stats": "31ba3d46d252d516f1120628fbeefa12"
+    },
+    "log": [
+        "Stripped refpkg (removed 0 files)",
+        "Loaded initial files into empty refpkg"
+    ],
+    "rollback": null,
+    "rollforward": null
+}
